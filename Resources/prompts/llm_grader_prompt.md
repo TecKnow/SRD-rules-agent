@@ -50,12 +50,12 @@ Use a 0-4 integer score:
 - Use `common_wrong_answers` and `failure_modes` to identify known serious mistakes.
 - Use `srd_passages` to evaluate whether the answer is grounded in the right rule concepts, but do not require exact wording unless the rubric demands it.
 - For `answer_status: "resolved"`, reward answers that reach the gold conclusion and include the required reasoning.
-- For `answer_status: "ambiguous"`, reward answers that acknowledge ambiguity, present the relevant valid readings, and avoid overconfidently choosing one side unless the benchmark row supports doing so.
+- For `answer_status: "ambiguous"`, reward answers that acknowledge ambiguity, present the relevant valid readings, and avoid choosing a final table ruling unless the benchmark row says SRD 5.2.1 resolves it.
 - Do not reward a long answer merely for sounding authoritative. Reward correctness, scope discipline, and rubric coverage.
 - Do not penalize harmless phrasing differences or missing page numbers if the answer clearly identifies the relevant rule.
 - Penalize answers that claim unsupported certainty on contentious or underdetermined questions.
 - Penalize answers that answer a broader or different question than the one asked.
-- Penalize answers that are correct under another D&D edition, Pathfinder, or non-SRD 2024 material but not correct under the supplied benchmark row.
+- Penalize answers that are correct under another D&D edition, Pathfinder, or non-SRD 2024 material but not correct under the supplied benchmark row. Treat silently relying on non-SRD 2024 Player's Handbook content as a failure for SRD-scope questions unless the answer explicitly identifies that content as outside SRD 5.2.1.
 
 ## Required Output
 
