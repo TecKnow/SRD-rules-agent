@@ -3,5 +3,6 @@ name = "srd-rules-agent"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "datasets>=4.8.5",
+    "marimo[recommended]>=0.23.8",
+    "pandas>=2.3.3",
 ]
