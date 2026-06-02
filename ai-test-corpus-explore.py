@@ -450,6 +450,7 @@ def _(alignment_df, benchmark_df, mo, srd_files):
     verified_rows = int(
         benchmark_df["verification_status"].eq("verified_against_srd").sum()
     )
+    gold_rows = int(benchmark_df["gold_dataset_linked"].fillna(False).sum())
     partial_rows = int(
         benchmark_df["verification_status"]
         .eq("partially_verified_against_srd")
@@ -463,8 +464,9 @@ def _(alignment_df, benchmark_df, mo, srd_files):
     Loaded **{len(benchmark_df):,}** benchmark rows, including
     **{claude_rows:,}** Claude rows. **{verified_rows:,}** rows are marked
     verified, **{partial_rows:,}** partially verified, and
-    **{ambiguous_rows:,}** ambiguous. **{curated_rows:,}** rows have
-    row-level curation metadata.
+    **{ambiguous_rows:,}** ambiguous. **{gold_rows:,}** rows are exact
+    imports from the human-curated gold dataset. **{curated_rows:,}** rows
+    have row-level curation metadata.
 
     Local SRD markdown files available for snippet search:
     **{len(srd_files):,}**.
@@ -485,6 +487,7 @@ def _(benchmark_df):
                 "answer_status",
                 "verification_status",
                 "curation_status",
+                "gold_link_status",
             ],
             dropna=False,
         )
@@ -531,6 +534,7 @@ def _(benchmark_df):
                 "answer_status",
                 "verification_status",
                 "curation_status",
+                "gold_link_status",
             ],
             var_name="dimension",
             value_name="value",
@@ -609,6 +613,7 @@ def _(
         filtered_df = filtered_df[
             filtered_df["verification_status"].isin(
                 ["verified_against_srd", "partially_verified_against_srd"]
+                + ["verified_against_gold_dataset"]
             )
         ]
     elif verification_filter.value != "all":
@@ -643,6 +648,7 @@ def _(filtered_df):
             "answer_status",
             "verification_status",
             "curation_status",
+            "gold_link_status",
             "difficulty",
             "contentiousness",
             "version_specificity",
@@ -746,6 +752,11 @@ def _(
     `{selected_row_data.get("curation_status")}` /
     `{selected_row_data.get("verification_status")}`
 
+    **Gold dataset link**
+
+    `{selected_row_data.get("gold_link_status")}` /
+    `{selected_row_data.get("linked_gold_ids")}`
+
     **Active failure-mode tags**
 
     `{", ".join(active_failure_modes) or "none"}`
@@ -804,6 +815,10 @@ def _(json, mo, selected_row_data):
             "authority_evidence",
             "curation_status",
             "verification_status",
+            "gold_dataset_linked",
+            "gold_link_status",
+            "linked_gold_ids",
+            "gold_dataset_links",
         ]
     }
     row_json = json.dumps(row_for_prompt, indent=2, ensure_ascii=False)
