@@ -66,6 +66,10 @@ def _(json, pd, re):
         "overconfident_ambiguous_ruling",
         "source_scope_failure",
         "conversion_or_encoding_artifact",
+        "unsupported_citation",
+        "missed_limiting_phrase",
+        "false_srd_exclusion",
+        "rule_name_collision",
     ]
 
     QUALITY_COLUMNS = [
@@ -193,6 +197,63 @@ def _(json, pd, re):
                 or "# recommendations" in text
                 or "onedrive" in str(row.get("source_file", "")).lower()
             ),
+            "unsupported_citation": has_any(
+                text,
+                [
+                    "unsupported citation",
+                    "citation placeholders",
+                    "sage advice",
+                    "designer",
+                    "faq",
+                    "rpg stack exchange",
+                    "without evidence",
+                ],
+            ),
+            "missed_limiting_phrase": has_any(
+                text,
+                [
+                    "while hidden",
+                    "unless",
+                    "except",
+                    "immediately after",
+                    "first time",
+                    "once per turn",
+                    "leaves your reach",
+                    "doesn't expend",
+                    "not included",
+                    "limiting phrase",
+                ],
+            ),
+            "false_srd_exclusion": has_any(
+                text,
+                [
+                    "false srd exclusion",
+                    "incorrectly claimed",
+                    "not in srd",
+                    "excluded from srd",
+                    "absent from the srd",
+                    "omitted",
+                ],
+            ),
+            "rule_name_collision": has_any(
+                text,
+                [
+                    "rule name collision",
+                    "attack action",
+                    "magic action",
+                    "melee weapon attack",
+                    "invisible condition",
+                    "heroic inspiration",
+                    "use an object",
+                    "utilize",
+                    "study action",
+                    "search action",
+                    "mysterious deck",
+                    "deck of many things",
+                    "off-guard",
+                    "touch ac",
+                ],
+            ),
         }
 
     def make_quality_flags(row):
@@ -215,13 +276,21 @@ def _(json, pd, re):
 
     def frame_from_rows(rows):
         frame = pd.DataFrame(rows)
+        explicit_failure_columns = {
+            column for column in FAILURE_MODE_COLUMNS if column in frame.columns
+        }
         for column in FAILURE_MODE_COLUMNS + QUALITY_COLUMNS:
-            frame[column] = False
+            if column not in frame.columns:
+                frame[column] = False
 
         failure_rows = frame.apply(make_failure_flags, axis=1)
         quality_rows = frame.apply(make_quality_flags, axis=1)
         for column in FAILURE_MODE_COLUMNS:
-            frame[column] = failure_rows.map(lambda flags: flags[column])
+            inferred_values = failure_rows.map(lambda flags: flags[column])
+            if column in explicit_failure_columns:
+                frame[column] = frame[column].fillna(inferred_values).astype(bool)
+            else:
+                frame[column] = inferred_values
         for column in QUALITY_COLUMNS:
             frame[column] = quality_rows.map(lambda flags: flags[column])
 
@@ -387,13 +456,15 @@ def _(alignment_df, benchmark_df, mo, srd_files):
         .sum()
     )
     ambiguous_rows = int(benchmark_df["answer_status"].eq("ambiguous").sum())
+    curated_rows = int(benchmark_df["curation_status"].notna().sum())
     mo.md(f"""
     ## Corpus Snapshot
 
     Loaded **{len(benchmark_df):,}** benchmark rows, including
     **{claude_rows:,}** Claude rows. **{verified_rows:,}** rows are marked
     verified, **{partial_rows:,}** partially verified, and
-    **{ambiguous_rows:,}** ambiguous.
+    **{ambiguous_rows:,}** ambiguous. **{curated_rows:,}** rows have
+    row-level curation metadata.
 
     Local SRD markdown files available for snippet search:
     **{len(srd_files):,}**.
@@ -413,6 +484,7 @@ def _(benchmark_df):
                 "category",
                 "answer_status",
                 "verification_status",
+                "curation_status",
             ],
             dropna=False,
         )
@@ -458,6 +530,7 @@ def _(benchmark_df):
                 "version_specificity",
                 "answer_status",
                 "verification_status",
+                "curation_status",
             ],
             var_name="dimension",
             value_name="value",
@@ -569,6 +642,7 @@ def _(filtered_df):
             "category",
             "answer_status",
             "verification_status",
+            "curation_status",
             "difficulty",
             "contentiousness",
             "version_specificity",
@@ -653,11 +727,24 @@ def _(
 
     {markdown_escape(selected_row_data.get("notes"))}
 
+    **Validation notes**
+
+    {markdown_escape(selected_row_data.get("validation_notes"))}
+
+    **Authority evidence**
+
+    {markdown_escape(selected_row_data.get("authority_evidence"))}
+
     **Source**
 
     `{selected_row_data.get("source_model")}` /
     `{selected_row_data.get("source_id")}` /
     line `{selected_row_data.get("source_line")}`
+
+    **Curation / verification**
+
+    `{selected_row_data.get("curation_status")}` /
+    `{selected_row_data.get("verification_status")}`
 
     **Active failure-mode tags**
 
@@ -713,17 +800,20 @@ def _(json, mo, selected_row_data):
             "common_wrong_answers",
             "failure_modes",
             "notes",
+            "validation_notes",
+            "authority_evidence",
+            "curation_status",
             "verification_status",
         ]
     }
     row_json = json.dumps(row_for_prompt, indent=2, ensure_ascii=False)
 
-    validation_prompt = f"""Validate this silver SRD 5.2.1 benchmark row against the SRD 5.2.1 text only. Identify any incorrect expected-answer claims, missing caveats, non-SRD imports, or ambiguity that should be preserved. Return concise proposed edits, but do not rewrite unrelated fields.
+    validation_prompt = f"""Validate this silver SRD 5.2.1 benchmark row against local SRD 5.2.1 text first. Use page-linked markdown before checking the PDF. Identify any incorrect expected-answer claims, missing caveats, non-SRD imports, unsupported citations, false SRD exclusions, or ambiguity that should be preserved. Return concise proposed edits, but do not rewrite unrelated fields.
 
 Benchmark row:
 {row_json}
 """
-    taxonomy_prompt = f"""Classify the likely answer failure modes for this SRD 5.2.1 benchmark row. Use only these labels: edition_drift, pathfinder_or_other_system_bleed, forum_or_unofficial_lore, non_srd_2024_import, partial_srd_retrieval, overconfident_ambiguous_ruling, source_scope_failure, conversion_or_encoding_artifact. Explain why each selected label applies.
+    taxonomy_prompt = f"""Classify the likely answer failure modes for this SRD 5.2.1 benchmark row. Use only these first-class labels: edition_drift, pathfinder_or_other_system_bleed, forum_or_unofficial_lore, non_srd_2024_import, partial_srd_retrieval, overconfident_ambiguous_ruling, source_scope_failure, conversion_or_encoding_artifact, unsupported_citation, missed_limiting_phrase, false_srd_exclusion, rule_name_collision. Explain why each selected label applies.
 
 Benchmark row:
 {row_json}
