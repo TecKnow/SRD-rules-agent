@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "anywidget-generator": {
+      "source": "marimo-team/skills",
+      "sourceType": "github",
+      "skillPath": "skills/anywidget/SKILL.md",
+      "computedHash": "734cdedf8eaedde5451219aa936dc843cf1a72f648e5fed1af6871a8a38bc229"
+    },
+    "marimo-notebook": {
+      "source": "marimo-team/skills",
+      "sourceType": "github",
+      "skillPath": "skills/marimo-notebook/SKILL.md",
+      "computedHash": "54638fc2c6326de69b13fc50231bb6ca41cd5594c8014f2ade6532a914a1ff2b"
+    },
+    "marimo-pair": {
+      "source": "marimo-team/marimo-pair",
+      "sourceType": "github",
+      "skillPath": "skills/marimo-pair/SKILL.md",
+      "computedHash": "e70c52b4cbd95e17c5109834d60fe0e4dbbc15ff400325461e94d36ec96077f2"
+    },
+    "wasm-compatibility": {
+      "source": "marimo-team/skills",
+      "sourceType": "github",
+      "skillPath": "skills/wasm-compatibility/SKILL.md",
+      "computedHash": "f06388e585e65166d80b780bba31b2e7e878eed1448f14e4187db4d703c3ce15"
+    }
+  }
+}
