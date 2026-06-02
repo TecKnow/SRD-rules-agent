@@ -451,6 +451,15 @@ def _(alignment_df, benchmark_df, mo, srd_files):
         benchmark_df["verification_status"].eq("verified_against_srd").sum()
     )
     gold_rows = int(benchmark_df["gold_dataset_linked"].fillna(False).sum())
+    audited_gold_rows = (
+        int(
+            benchmark_df["gold_audit_status"]
+            .eq("audited_gold_answer_preserved_refined_criteria_added")
+            .sum()
+        )
+        if "gold_audit_status" in benchmark_df.columns
+        else 0
+    )
     partial_rows = int(
         benchmark_df["verification_status"]
         .eq("partially_verified_against_srd")
@@ -465,8 +474,9 @@ def _(alignment_df, benchmark_df, mo, srd_files):
     **{claude_rows:,}** Claude rows. **{verified_rows:,}** rows are marked
     verified, **{partial_rows:,}** partially verified, and
     **{ambiguous_rows:,}** ambiguous. **{gold_rows:,}** rows are exact
-    imports from the human-curated gold dataset. **{curated_rows:,}** rows
-    have row-level curation metadata.
+    imports from the human-curated gold dataset, with **{audited_gold_rows:,}**
+    preserving the gold answer plus AI-refined grading criteria.
+    **{curated_rows:,}** rows have row-level curation metadata.
 
     Local SRD markdown files available for snippet search:
     **{len(srd_files):,}**.
@@ -488,6 +498,7 @@ def _(benchmark_df):
                 "verification_status",
                 "curation_status",
                 "gold_link_status",
+                "gold_audit_status",
             ],
             dropna=False,
         )
@@ -757,6 +768,16 @@ def _(
     `{selected_row_data.get("gold_link_status")}` /
     `{selected_row_data.get("linked_gold_ids")}`
 
+    **Gold answer / refined criteria**
+
+    Status: `{selected_row_data.get("gold_audit_status", "not_gold_linked")}`
+
+    Gold answer preserved: {markdown_escape(selected_row_data.get("gold_answer_verbatim"))}
+
+    AI-refined expected-answer note: {markdown_escape(selected_row_data.get("ai_refined_expected_answer"))}
+
+    AI-refined rubric: {markdown_escape(selected_row_data.get("ai_refined_rubric"))}
+
     **Active failure-mode tags**
 
     `{", ".join(active_failure_modes) or "none"}`
@@ -819,6 +840,11 @@ def _(json, mo, selected_row_data):
             "gold_link_status",
             "linked_gold_ids",
             "gold_dataset_links",
+            "gold_audit_status",
+            "gold_answer_verbatim",
+            "gold_answer_has_source_passages",
+            "ai_refined_expected_answer",
+            "ai_refined_rubric",
         ]
     }
     row_json = json.dumps(row_for_prompt, indent=2, ensure_ascii=False)
