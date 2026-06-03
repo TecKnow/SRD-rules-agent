@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import json
 import os
 from datetime import UTC, datetime
@@ -6,19 +7,21 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .config import load_env
-from .io import DEFAULT_BENCHMARK_PATH, JsonObject, read_jsonl, require_new_file, write_jsonl
+from .io import DEFAULT_BENCHMARK_PATH, JsonObject, append_jsonl, read_jsonl, require_new_file
 from .openrouter import OpenRouterClient
 
 
 EVALUATOR_NAME = "deepeval-srd-correctness"
-EVALUATOR_VERSION = "v2-structured-diagnostics"
+EVALUATOR_VERSION = "v3-structured-diagnostics"
 DEFAULT_THRESHOLD = 0.7
+DEFAULT_CONCURRENCY = 4
 REQUIRED_ANSWER_FIELDS = ("run_id", "question_id", "question", "answer", "model")
 type FailureType = Literal[
     "edition_drift",
     "other_system_bleed",
     "non_srd_2024_import",
-    "unsupported_citation",
+    "unsupported_source_claim",
+    "false_source_attribution",
     "false_srd_exclusion",
     "missed_limiting_phrase",
     "rule_name_collision",
@@ -29,7 +32,8 @@ FAILURE_TYPES: tuple[FailureType, ...] = (
     "edition_drift",
     "other_system_bleed",
     "non_srd_2024_import",
-    "unsupported_citation",
+    "unsupported_source_claim",
+    "false_source_attribution",
     "false_srd_exclusion",
     "missed_limiting_phrase",
     "rule_name_collision",
@@ -37,15 +41,16 @@ FAILURE_TYPES: tuple[FailureType, ...] = (
     "insufficient_or_vague_answer",
 )
 FAILURE_TYPE_DESCRIPTIONS: dict[FailureType, str] = {
-    "edition_drift": "Imports older D&D 2014 or other edition rules instead of SRD 5.2.1.",
-    "other_system_bleed": "Imports Pathfinder, other games, forum lore, or non-D&D rules.",
-    "non_srd_2024_import": "Treats non-SRD 2024 material as if it were in SRD 5.2.1.",
-    "unsupported_citation": "Invents, overstates, or relies on unsupported citations or source claims.",
-    "false_srd_exclusion": "Incorrectly says a real SRD 5.2.1 rule, option, item, spell, or feature is absent.",
-    "missed_limiting_phrase": "Misses a material condition, exception, timing limit, action type, or scope limit.",
-    "rule_name_collision": "Confuses similarly named rules, actions, spells, traits, features, or conditions.",
-    "overconfident_ambiguous_ruling": "For an ambiguous benchmark row, forces one answer without preserving ambiguity.",
-    "insufficient_or_vague_answer": "Is too vague, incomplete, hedged, or noncommittal to answer the question.",
+    "edition_drift": "The answer relies on older D&D rules, terminology, or mechanics instead of SRD 5.2.1.",
+    "other_system_bleed": "The answer imports Pathfinder, another game system, forum lore, or unofficial table practice as rules authority.",
+    "non_srd_2024_import": "The answer treats official or plausible 2024 D&D material as SRD 5.2.1 even though it is not in the SRD grading key.",
+    "unsupported_source_claim": "The answer makes a material source-backed claim that the grading key does not support, including invented citations, invented rule text, or unsupported 'the SRD says' claims.",
+    "false_source_attribution": "The answer explicitly attributes a rule, mechanic, or conclusion to SRD 5.2.1 when the SRD grading key does not support that attribution.",
+    "false_srd_exclusion": "The answer incorrectly says a real SRD 5.2.1 rule, option, item, spell, feature, or limitation is absent.",
+    "missed_limiting_phrase": "The answer misses a material condition, exception, timing limit, action type, scope limit, or other limiting phrase needed for the correct ruling.",
+    "rule_name_collision": "The answer confuses similarly named rules, actions, spells, traits, features, conditions, or game terms.",
+    "overconfident_ambiguous_ruling": "For an ambiguous benchmark row, the answer forces one final ruling without preserving the benchmark's ambiguity.",
+    "insufficient_or_vague_answer": "The answer is too vague, incomplete, hedged, or noncommittal to answer the question even if it avoids clear falsehoods.",
 }
 
 
@@ -65,6 +70,18 @@ def parse_args() -> argparse.Namespace:
         help="Use DeepEval's native model string or an OpenRouter-backed custom judge.",
     )
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=int(os.environ.get("DEEPEVAL_JUDGE_CONCURRENCY", DEFAULT_CONCURRENCY)),
+        help="Maximum concurrent judge requests.",
+    )
+    parser.add_argument("--resume", action="store_true", help="Append to an existing score file and skip completed rows.")
+    parser.add_argument(
+        "--retry-errors",
+        action="store_true",
+        help="With --resume, retry rows that previously produced error score records.",
+    )
     parser.add_argument("--fail-fast", action="store_true")
     return parser.parse_args()
 
@@ -138,7 +155,7 @@ def diagnostic_prompt(*, answer: JsonObject, benchmark_row: JsonObject) -> str:
     return f"""You are grading a model answer to a D&D SRD 5.2.1 rules benchmark.
 
 Use only the grading key below. Do not require exact wording. Reward correct rules conclusions, important limits and exceptions, and ambiguity preservation when the benchmark says the answer is ambiguous.
-Penalize D&D 2014 drift, Pathfinder or other-system bleed, non-SRD 2024 imports, unsupported citations, false SRD exclusions, missed limiting phrases, rule-name collisions, and overconfident rulings on ambiguous rows.
+Penalize D&D 2014 drift, Pathfinder or other-system bleed, non-SRD 2024 imports, unsupported source claims, false source attributions, false SRD exclusions, missed limiting phrases, rule-name collisions, and overconfident rulings on ambiguous rows.
 
 Return only a JSON object with this exact shape:
 {{
@@ -148,7 +165,8 @@ Return only a JSON object with this exact shape:
     "edition_drift": false,
     "other_system_bleed": false,
     "non_srd_2024_import": false,
-    "unsupported_citation": false,
+    "unsupported_source_claim": false,
+    "false_source_attribution": false,
     "false_srd_exclusion": false,
     "missed_limiting_phrase": false,
     "rule_name_collision": false,
@@ -159,7 +177,8 @@ Return only a JSON object with this exact shape:
     "edition_drift": "",
     "other_system_bleed": "",
     "non_srd_2024_import": "",
-    "unsupported_citation": "",
+    "unsupported_source_claim": "",
+    "false_source_attribution": "",
     "false_srd_exclusion": "",
     "missed_limiting_phrase": "",
     "rule_name_collision": "",
@@ -170,6 +189,8 @@ Return only a JSON object with this exact shape:
 }}
 
 Score is a float from 0.0 to 1.0. Set a failure type to true only when that error is present in the actual answer. Leave notes blank for false failure types. diagnostic_confidence must be "high", "medium", or "low".
+Do not mark a failure type for harmless extra context that does not affect the answer's rules conclusion, source trustworthiness, or ambiguity handling. In particular, do not mark unsupported_source_claim for a minor aside unless it asserts unsupported source authority, invents rule content, or materially affects trust in the answer.
+Use false_source_attribution only when the answer explicitly ties an unsupported rule or conclusion to SRD 5.2.1 or another named source. Use false_srd_exclusion only for the opposite error: saying something is absent from SRD 5.2.1 when the grading key shows it is present.
 
 Failure type definitions:
 {failure_types}
@@ -246,6 +267,9 @@ class StructuredOpenRouterJudge:
         )
         return normalize_diagnostic_result(parse_judge_json(result.text))
 
+    async def ameasure(self, *, answer: JsonObject, benchmark_row: JsonObject) -> JsonObject:
+        return await asyncio.to_thread(self.measure, answer=answer, benchmark_row=benchmark_row)
+
 
 def make_judge(args: argparse.Namespace) -> StructuredOpenRouterJudge:
     if args.judge_provider != "openrouter":
@@ -253,9 +277,74 @@ def make_judge(args: argparse.Namespace) -> StructuredOpenRouterJudge:
     return StructuredOpenRouterJudge(model=args.judge_model, timeout_seconds=args.timeout_seconds)
 
 
-def score_records(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
+def answer_key(row: JsonObject) -> tuple[str, str, str]:
+    return (str(row.get("run_id")), str(row.get("question_id")), str(row.get("model")))
+
+
+def completed_score_keys(path: Path, *, retry_errors: bool) -> set[tuple[str, str, str]]:
+    if not path.exists():
+        return set()
+    return {
+        answer_key(row)
+        for row in read_jsonl(path)
+        if not retry_errors or not row.get("error")
+    }
+
+
+def score_record(
+    answer: JsonObject,
+    *,
+    answer_index: int,
+    args: argparse.Namespace,
+    result: JsonObject,
+) -> JsonObject:
+    question_id = str(answer["question_id"])
+    score = float(result["score"])
+    return {
+        "run_id": answer["run_id"],
+        "pipeline": answer.get("pipeline", "no_rag"),
+        "question_id": question_id,
+        "answer_index": answer_index,
+        "model": answer["model"],
+        "evaluator": EVALUATOR_NAME,
+        "evaluator_version": EVALUATOR_VERSION,
+        "judge_model": args.judge_model,
+        "judge_provider": args.judge_provider,
+        "threshold": args.threshold,
+        "score": score,
+        "passed": score >= args.threshold,
+        "rationale": result["rationale"],
+        "failure_types": result["failure_types"],
+        "failure_notes": result["failure_notes"],
+        "diagnostic_confidence": result["diagnostic_confidence"],
+        "question_metadata": answer.get("benchmark_metadata", {}),
+        "graded_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def score_one(
+    answer: JsonObject,
+    *,
+    answer_index: int,
+    benchmark: dict[str, JsonObject],
+    judge: StructuredOpenRouterJudge,
+    args: argparse.Namespace,
+) -> JsonObject:
+    question_id = str(answer["question_id"])
+    benchmark_row = benchmark[question_id]
+    try:
+        result = await judge.ameasure(answer=answer, benchmark_row=benchmark_row)
+        return score_record(answer, answer_index=answer_index, args=args, result=result)
+    except Exception as exc:
+        if args.fail_fast:
+            raise
+        return error_record(answer, args, str(exc), answer_index=answer_index)
+
+
+async def score_records_async(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
     path = args.output or default_output_path(args.answers)
-    require_new_file(path)
+    if not args.resume:
+        require_new_file(path)
 
     benchmark = benchmark_by_id(args.benchmark)
     all_answers = list(read_jsonl(args.answers))
@@ -266,45 +355,61 @@ def score_records(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
     if args.limit is not None:
         answers = answers[: args.limit]
 
-    rows: list[JsonObject] = []
-    for answer in answers:
-        question_id = str(answer["question_id"])
-        benchmark_row = benchmark[question_id]
+    existing_keys = completed_score_keys(path, retry_errors=args.retry_errors) if args.resume else set()
+    indexed_answers = list(enumerate(answers))
+    skipped = sum(1 for _, answer in indexed_answers if answer_key(answer) in existing_keys)
+    pending_answers = [(index, answer) for index, answer in indexed_answers if answer_key(answer) not in existing_keys]
+    total = len(pending_answers)
+    print(
+        f"Writing DeepEval scores to {path}",
+        flush=True,
+    )
+    print(
+        f"Planned score rows: {len(answers)}; pending: {total}; skipped by resume: {skipped}; concurrency: {max(1, args.concurrency)}",
+        flush=True,
+    )
+    if total == 0:
+        return path, []
 
-        try:
-            result = judge.measure(answer=answer, benchmark_row=benchmark_row)
-            score = float(result["score"])
-            rows.append(
-                {
-                    "run_id": answer["run_id"],
-                    "pipeline": answer.get("pipeline", "no_rag"),
-                    "question_id": question_id,
-                    "model": answer["model"],
-                    "evaluator": EVALUATOR_NAME,
-                    "evaluator_version": EVALUATOR_VERSION,
-                    "judge_model": args.judge_model,
-                    "judge_provider": args.judge_provider,
-                    "threshold": args.threshold,
-                    "score": score,
-                    "passed": score >= args.threshold,
-                    "rationale": result["rationale"],
-                    "failure_types": result["failure_types"],
-                    "failure_notes": result["failure_notes"],
-                    "diagnostic_confidence": result["diagnostic_confidence"],
-                    "question_metadata": answer.get("benchmark_metadata", {}),
-                    "graded_at": datetime.now(UTC).isoformat(),
-                }
+    concurrency = max(1, args.concurrency)
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def bounded_score(answer_index: int, answer: JsonObject) -> JsonObject:
+        async with semaphore:
+            return await score_one(
+                answer,
+                answer_index=answer_index,
+                benchmark=benchmark,
+                judge=judge,
+                args=args,
             )
-        except Exception as exc:
-            if args.fail_fast:
-                raise
-            rows.append(error_record(answer, args, str(exc)))
 
+    rows: list[JsonObject] = []
+    tasks = [bounded_score(index, answer) for index, answer in pending_answers]
+    for completed, task in enumerate(asyncio.as_completed(tasks), start=1):
+        row = await task
+        append_jsonl(path, row)
+        rows.append(row)
+        status = "ERROR" if row.get("error") else "DONE "
+        print(
+            f"[{completed}/{total}] {status} {row['question_id']} | {row.get('model')}",
+            flush=True,
+        )
     return path, rows
 
 
-def error_record(answer: JsonObject, args: argparse.Namespace, error: str) -> JsonObject:
-    return {
+def score_records(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
+    return asyncio.run(score_records_async(args))
+
+
+def error_record(
+    answer: JsonObject,
+    args: argparse.Namespace,
+    error: str,
+    *,
+    answer_index: int | None = None,
+) -> JsonObject:
+    row = {
         "run_id": answer.get("run_id"),
         "pipeline": answer.get("pipeline", "no_rag"),
         "question_id": str(answer.get("question_id")),
@@ -320,13 +425,15 @@ def error_record(answer: JsonObject, args: argparse.Namespace, error: str) -> Js
         "error": error,
         "graded_at": datetime.now(UTC).isoformat(),
     }
+    if answer_index is not None:
+        row["answer_index"] = answer_index
+    return row
 
 
 def main() -> None:
     args = parse_args()
     path, rows = score_records(args)
-    count = write_jsonl(path, rows)
-    print(f"Wrote {count} DeepEval score records to {path}")
+    print(f"Wrote {len(rows)} new DeepEval score records to {path}")
 
 
 if __name__ == "__main__":
