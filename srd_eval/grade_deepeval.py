@@ -15,6 +15,7 @@ EVALUATOR_NAME = "deepeval-srd-correctness"
 EVALUATOR_VERSION = "v3-structured-diagnostics"
 DEFAULT_THRESHOLD = 0.7
 DEFAULT_CONCURRENCY = 4
+DEFAULT_JUDGE_MAX_TOKENS = 4000
 REQUIRED_ANSWER_FIELDS = ("run_id", "question_id", "question", "answer", "model")
 type FailureType = Literal[
     "edition_drift",
@@ -70,6 +71,12 @@ def parse_args() -> argparse.Namespace:
         help="Use DeepEval's native model string or an OpenRouter-backed custom judge.",
     )
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument(
+        "--judge-max-tokens",
+        type=int,
+        default=int(os.environ.get("DEEPEVAL_JUDGE_MAX_TOKENS", DEFAULT_JUDGE_MAX_TOKENS)),
+        help="Maximum completion tokens for each structured judge response.",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -189,6 +196,7 @@ Return only a JSON object with this exact shape:
 }}
 
 Score is a float from 0.0 to 1.0. Set a failure type to true only when that error is present in the actual answer. Leave notes blank for false failure types. diagnostic_confidence must be "high", "medium", or "low".
+Keep rationale to at most 90 words. Keep each nonblank failure note to at most 25 words. Do not include markdown, citations, bullet lists, or extra keys.
 Do not mark a failure type for harmless extra context that does not affect the answer's rules conclusion, source trustworthiness, or ambiguity handling. In particular, do not mark unsupported_source_claim for a minor aside unless it asserts unsupported source authority, invents rule content, or materially affects trust in the answer.
 Use false_source_attribution only when the answer explicitly ties an unsupported rule or conclusion to SRD 5.2.1 or another named source. Use false_srd_exclusion only for the opposite error: saying something is absent from SRD 5.2.1 when the grading key shows it is present.
 
@@ -253,8 +261,9 @@ def normalize_diagnostic_result(value: JsonObject) -> JsonObject:
 
 
 class StructuredOpenRouterJudge:
-    def __init__(self, *, model: str, timeout_seconds: int) -> None:
+    def __init__(self, *, model: str, timeout_seconds: int, max_tokens: int = DEFAULT_JUDGE_MAX_TOKENS) -> None:
         self.model = model
+        self.max_tokens = max_tokens
         self.client = OpenRouterClient(timeout_seconds=timeout_seconds)
 
     def measure(self, *, answer: JsonObject, benchmark_row: JsonObject) -> JsonObject:
@@ -262,7 +271,7 @@ class StructuredOpenRouterJudge:
             model=self.model,
             messages=[{"role": "user", "content": diagnostic_prompt(answer=answer, benchmark_row=benchmark_row)}],
             temperature=0.0,
-            max_tokens=1800,
+            max_tokens=self.max_tokens,
             response_format={"type": "json_object"},
         )
         return normalize_diagnostic_result(parse_judge_json(result.text))
@@ -274,7 +283,11 @@ class StructuredOpenRouterJudge:
 def make_judge(args: argparse.Namespace) -> StructuredOpenRouterJudge:
     if args.judge_provider != "openrouter":
         raise ValueError("Structured diagnostic grading currently requires --judge-provider openrouter")
-    return StructuredOpenRouterJudge(model=args.judge_model, timeout_seconds=args.timeout_seconds)
+    return StructuredOpenRouterJudge(
+        model=args.judge_model,
+        timeout_seconds=args.timeout_seconds,
+        max_tokens=args.judge_max_tokens,
+    )
 
 
 def answer_key(row: JsonObject) -> tuple[str, str, str]:
