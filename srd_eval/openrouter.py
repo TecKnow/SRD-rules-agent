@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import os
 import urllib.error
@@ -8,13 +6,16 @@ from dataclasses import dataclass
 from typing import Any
 
 
+type ChatMessage = dict[str, str]
+type JsonObject = dict[str, Any]
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ChatResult:
     text: str
-    raw_response: dict[str, Any]
+    raw_response: JsonObject
 
 
 class OpenRouterClient:
@@ -37,12 +38,12 @@ class OpenRouterClient:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[ChatMessage],
         temperature: float = 0.0,
         max_tokens: int = 1600,
-        response_format: dict[str, str] | None = None,
+        response_format: JsonObject | None = None,
     ) -> ChatResult:
-        payload: dict[str, Any] = {
+        payload: JsonObject = {
             "model": model,
             "messages": messages,
             "temperature": temperature,

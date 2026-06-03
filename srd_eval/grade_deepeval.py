@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -7,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .io import DEFAULT_BENCHMARK_PATH, read_jsonl, require_new_file, write_jsonl
+from .io import DEFAULT_BENCHMARK_PATH, JsonObject, read_jsonl, require_new_file, write_jsonl
 from .openrouter import OpenRouterClient
 
 
@@ -40,11 +38,11 @@ def default_output_path(answers_path: Path) -> Path:
     return answers_path.with_name(f"{stem}.deepeval_scores.jsonl")
 
 
-def benchmark_by_id(path: Path) -> dict[str, dict[str, Any]]:
+def benchmark_by_id(path: Path) -> dict[str, JsonObject]:
     return {str(row["id"]): row for row in read_jsonl(path)}
 
 
-def expected_output(row: dict[str, Any]) -> str:
+def expected_output(row: JsonObject) -> str:
     parts = [
         ("Expected answer", row.get("ai_refined_expected_answer") or row.get("expected_answer")),
         ("Rubric", row.get("ai_refined_rubric") or row.get("rubric")),
@@ -124,7 +122,7 @@ def judge_model(args: argparse.Namespace) -> Any:
     return args.judge_model
 
 
-def score_records(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]:
+def score_records(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
     from deepeval.test_case import LLMTestCase
 
     path = args.output or default_output_path(args.answers)
@@ -136,7 +134,7 @@ def score_records(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]
     if args.limit is not None:
         answers = answers[: args.limit]
 
-    rows: list[dict[str, Any]] = []
+    rows: list[JsonObject] = []
     for answer in answers:
         question_id = str(answer["question_id"])
         benchmark_row = benchmark.get(question_id)
@@ -181,7 +179,7 @@ def score_records(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]
     return path, rows
 
 
-def error_record(answer: dict[str, Any], args: argparse.Namespace, error: str) -> dict[str, Any]:
+def error_record(answer: JsonObject, args: argparse.Namespace, error: str) -> JsonObject:
     return {
         "run_id": answer.get("run_id"),
         "pipeline": answer.get("pipeline", "no_rag"),

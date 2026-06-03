@@ -1,17 +1,17 @@
-from __future__ import annotations
-
 import json
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
 
+type JsonObject = dict[str, Any]
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BENCHMARK_PATH = ROOT / "Resources" / "Test files" / "benchmark.jsonl"
 DEFAULT_RUNS_DIR = ROOT / "runs" / "no_rag"
 
 
-def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+def read_jsonl(path: Path) -> Iterator[JsonObject]:
     with path.open("r", encoding="utf-8-sig") as handle:
         for line_number, line in enumerate(handle, start=1):
             stripped = line.strip()
@@ -26,7 +26,7 @@ def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
             yield value
 
 
-def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+def write_jsonl(path: Path, rows: Iterable[JsonObject]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with path.open("w", encoding="utf-8", newline="\n") as handle:
@@ -42,7 +42,7 @@ def require_new_file(path: Path) -> None:
         raise FileExistsError(f"{path} already exists; choose a new run id or output path")
 
 
-def compact_metadata(row: dict[str, Any]) -> dict[str, Any]:
+def compact_metadata(row: JsonObject) -> JsonObject:
     keys = [
         "category",
         "difficulty",

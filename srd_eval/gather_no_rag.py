@@ -1,13 +1,18 @@
-from __future__ import annotations
-
 import argparse
 import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
-from .io import DEFAULT_BENCHMARK_PATH, DEFAULT_RUNS_DIR, compact_metadata, read_jsonl, require_new_file, write_jsonl
+from .io import (
+    DEFAULT_BENCHMARK_PATH,
+    DEFAULT_RUNS_DIR,
+    JsonObject,
+    compact_metadata,
+    read_jsonl,
+    require_new_file,
+    write_jsonl,
+)
 from .openrouter import OpenRouterClient
 
 
@@ -46,7 +51,7 @@ def models_from_args(values: list[str] | None) -> list[str]:
     raise RuntimeError("Provide at least one --model or set OPENROUTER_MODELS as a comma-separated list")
 
 
-def make_user_prompt(row: dict[str, Any]) -> str:
+def make_user_prompt(row: JsonObject) -> str:
     metadata = compact_metadata(row)
     metadata_lines = "\n".join(f"- {key}: {value}" for key, value in metadata.items())
     return f"""Question:
@@ -64,7 +69,7 @@ def output_path(args: argparse.Namespace, run_id: str) -> Path:
     return args.runs_dir / run_id / "answers.jsonl"
 
 
-def build_records(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]:
+def build_records(args: argparse.Namespace) -> tuple[Path, list[JsonObject]]:
     run_id = args.run_id or f"no-rag-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
     path = output_path(args, run_id)
     require_new_file(path)
@@ -75,7 +80,7 @@ def build_records(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]
     if args.limit is not None:
         benchmark_rows = benchmark_rows[: args.limit]
 
-    records: list[dict[str, Any]] = []
+    records: list[JsonObject] = []
     for row in benchmark_rows:
         for model in models:
             result = client.chat(
