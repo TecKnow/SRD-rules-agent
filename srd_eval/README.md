@@ -48,6 +48,16 @@ srd-eval-grade --answers runs/no_rag/<run_id>/answers.jsonl --judge-provider ope
 
 Scores are written next to the answer workbook as `answers.deepeval_scores.jsonl`.
 
+## Preserved Baseline Run
+
+The repository includes a completed no-RAG baseline workbook for analysis and presentation:
+
+```text
+runs/no_rag/no-rag-20260603T074521Z-07aa8696/answers_for_grading.jsonl
+```
+
+This file contains 900 successful answer records: 180 benchmark questions across 5 OpenRouter models. It is the cleaned grading input derived from the completed run, with a transient duplicate/error row removed.
+
 ## LangChain Demo
 
 Open `langchain-answer-gathering-demo.py` to see the same gathering shape through LangChain's `ChatOpenRouter` integration:

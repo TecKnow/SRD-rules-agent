@@ -306,4 +306,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Evaluation outputs
-runs/
+runs/**
+!runs/
+!runs/no_rag/
+!runs/no_rag/**/
+!runs/no_rag/**/answers_for_grading.jsonl
