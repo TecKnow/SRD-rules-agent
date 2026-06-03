@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .config import load_env
 from .io import DEFAULT_BENCHMARK_PATH, JsonObject, read_jsonl, require_new_file, write_jsonl
 from .openrouter import OpenRouterClient
 
@@ -15,6 +16,7 @@ DEFAULT_THRESHOLD = 0.7
 
 
 def parse_args() -> argparse.Namespace:
+    load_env()
     parser = argparse.ArgumentParser(description="Grade saved no-RAG answers with DeepEval.")
     parser.add_argument("--benchmark", type=Path, default=DEFAULT_BENCHMARK_PATH)
     parser.add_argument("--answers", type=Path, required=True)

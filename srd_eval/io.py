@@ -37,6 +37,13 @@ def write_jsonl(path: Path, rows: Iterable[JsonObject]) -> int:
     return count
 
 
+def append_jsonl(path: Path, row: JsonObject) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True))
+        handle.write("\n")
+
+
 def require_new_file(path: Path) -> None:
     if path.exists():
         raise FileExistsError(f"{path} already exists; choose a new run id or output path")
@@ -57,4 +64,4 @@ def compact_metadata(row: JsonObject) -> JsonObject:
         "tags",
         "topic",
     ]
-    return {key: row.get(key) for key in keys if key in row}
+    return {key: row[key] for key in keys if key in row}

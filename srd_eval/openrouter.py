@@ -5,6 +5,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from .config import load_env
+
 
 type ChatMessage = dict[str, str]
 type JsonObject = dict[str, Any]
@@ -27,6 +29,7 @@ class OpenRouterClient:
         site_url: str | None = None,
         timeout_seconds: int = 120,
     ) -> None:
+        load_env()
         self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required for OpenRouter calls")
