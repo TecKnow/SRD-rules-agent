@@ -304,3 +304,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Evaluation outputs
+runs/
