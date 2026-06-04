@@ -701,16 +701,14 @@ def _(pd, selected_pair):
     return
 
 
-app._unparsable_cell(
-    """
-    mo.md(f\"\"\"
+@app.cell
+def _(mo, selected_pair):
+    mo.md(f"""
     ### Question
 
-    {selected_pair.get(\"question\", \"\\\")}
-    \"\"\")
-    """,
-    name="_"
-)
+    {selected_pair.get("question", "")}
+    """)
+    return
 
 
 @app.cell
