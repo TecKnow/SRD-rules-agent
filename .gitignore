@@ -311,3 +311,4 @@ runs/**
 !runs/no_rag/
 !runs/no_rag/**/
 !runs/no_rag/**/answers_for_grading.jsonl
+!runs/no_rag/**/answers_for_grading.deepeval_scores.success_only.jsonl
