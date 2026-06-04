@@ -6,6 +6,7 @@ dependencies = [
     "deepeval>=3.7.0",
     "langchain-openrouter>=0.2.3",
     "marimo[recommended]>=0.23.8",
+    "matplotlib>=3.10.9",
     "pandas>=2.3.3",
     "python-dotenv>=1.2.2",
 ]

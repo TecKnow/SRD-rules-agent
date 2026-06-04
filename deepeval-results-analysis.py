@@ -2,6 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = [
 #     "marimo[recommended]>=0.23.8",
+#     "matplotlib==3.10.9",
 #     "pandas>=2.3.3",
 #     "python-dotenv>=1.2.2",
 # ]
@@ -19,13 +20,14 @@ def _():
     from pathlib import Path
 
     import marimo as mo
+    import matplotlib.pyplot as plt
     import pandas as pd
     from dotenv import load_dotenv
 
     from srd_eval.grade_deepeval import FAILURE_TYPES
     from srd_eval.io import read_jsonl
 
-    return FAILURE_TYPES, Path, json, load_dotenv, mo, pd, read_jsonl
+    return FAILURE_TYPES, Path, json, load_dotenv, mo, pd, plt, read_jsonl
 
 
 @app.cell
@@ -54,7 +56,7 @@ def _(Path):
 def _(ENV_PATH, load_dotenv, mo):
     load_dotenv(ENV_PATH, override=False)
     is_script_mode = mo.app_meta().mode == "script"
-    return (is_script_mode,)
+    return
 
 
 @app.cell
@@ -79,7 +81,7 @@ def _(Path, answers_path_input, read_jsonl, scores_path_input):
     answers_path = Path(answers_path_input.value)
     score_records_raw = list(read_jsonl(scores_path))
     answer_records_raw = list(read_jsonl(answers_path))
-    return answer_records_raw, answers_path, score_records_raw, scores_path
+    return answer_records_raw, score_records_raw
 
 
 @app.cell
@@ -116,7 +118,7 @@ def _(FAILURE_TYPES, answer_records_raw, score_records_raw):
                 },
             }
         )
-    return merged_records, record_key
+    return (merged_records,)
 
 
 @app.cell
@@ -182,6 +184,24 @@ def _(FAILURE_TYPES, merged_records, pd):
 
 
 @app.cell
+def _(error_counts_df, plt):
+    failure_counts_plot_df = error_counts_df.sort_values("count", ascending=True)
+    failure_counts_fig, failure_counts_ax = plt.subplots(figsize=(9, 4.8))
+    failure_counts_ax.barh(
+        failure_counts_plot_df["failure_type"],
+        failure_counts_plot_df["count"],
+        color="#3b6ea8",
+    )
+    failure_counts_ax.set_title("Failure Type Counts")
+    failure_counts_ax.set_xlabel("Rows flagged")
+    failure_counts_ax.set_ylabel("")
+    failure_counts_ax.grid(axis="x", alpha=0.25)
+    failure_counts_fig.tight_layout()
+    failure_counts_fig
+    return
+
+
+@app.cell
 def _(FAILURE_TYPES, merged_records, pd):
     model_rows = []
     for model in sorted({row["model"] for row in merged_records}):
@@ -200,6 +220,33 @@ def _(FAILURE_TYPES, merged_records, pd):
     model_failure_df = pd.DataFrame(model_rows)
     model_failure_df
     return (model_failure_df,)
+
+
+@app.cell
+def _(FAILURE_TYPES, model_failure_df, plt):
+    heatmap_data = model_failure_df.set_index("model")[list(FAILURE_TYPES)]
+    heatmap_fig, heatmap_ax = plt.subplots(figsize=(11, 4.8))
+    heatmap_image = heatmap_ax.imshow(heatmap_data.values, aspect="auto", cmap="YlOrRd")
+    heatmap_ax.set_title("Failure Types by Answer Model")
+    heatmap_ax.set_xticks(range(len(heatmap_data.columns)))
+    heatmap_ax.set_xticklabels(heatmap_data.columns, rotation=45, ha="right")
+    heatmap_ax.set_yticks(range(len(heatmap_data.index)))
+    heatmap_ax.set_yticklabels(heatmap_data.index)
+    for heatmap_row_index, heatmap_model_name in enumerate(heatmap_data.index):
+        for heatmap_column_index, heatmap_failure_type in enumerate(heatmap_data.columns):
+            heatmap_value = int(heatmap_data.loc[heatmap_model_name, heatmap_failure_type])
+            heatmap_ax.text(
+                heatmap_column_index,
+                heatmap_row_index,
+                str(heatmap_value),
+                ha="center",
+                va="center",
+                fontsize=8,
+            )
+    heatmap_fig.colorbar(heatmap_image, ax=heatmap_ax, label="Rows flagged")
+    heatmap_fig.tight_layout()
+    heatmap_fig
+    return
 
 
 @app.cell
@@ -222,7 +269,12 @@ def _(FAILURE_TYPES, merged_records, mo):
             question_filter_input,
         ]
     )
-    return failure_type_dropdown, model_dropdown, pass_dropdown, question_filter_input
+    return (
+        failure_type_dropdown,
+        model_dropdown,
+        pass_dropdown,
+        question_filter_input,
+    )
 
 
 @app.cell
@@ -256,27 +308,80 @@ def _(
 
 
 @app.cell
-def _(filtered_records, mo):
-    max_index = max(0, len(filtered_records) - 1)
-    result_index_slider = mo.ui.slider(
-        start=0,
-        stop=max_index,
-        value=0,
-        label="Result index",
+def _(mo):
+    page_size_dropdown = mo.ui.dropdown(
+        options=["10", "25", "50", "100"],
+        value="25",
+        label="Rows per page",
     )
-    mo.vstack(
-        [
-            mo.md(f"**Filtered rows:** {len(filtered_records)}"),
-            result_index_slider,
-        ]
-    )
-    return (result_index_slider,)
+    page_number_input = mo.ui.text(value="1", label="Page number")
+    mo.hstack([page_size_dropdown, page_number_input])
+    return page_number_input, page_size_dropdown
 
 
 @app.cell
-def _(filtered_records, result_index_slider):
-    if filtered_records:
-        selected_record = filtered_records[min(result_index_slider.value, len(filtered_records) - 1)]
+def _(filtered_records, page_number_input, page_size_dropdown):
+    page_size = int(page_size_dropdown.value)
+    total_pages = max(1, (len(filtered_records) + page_size - 1) // page_size)
+    page_text = page_number_input.value.strip()
+    requested_page = int(page_text) if page_text.isdecimal() else 1
+    page_number = min(max(1, requested_page), total_pages)
+    start_offset = (page_number - 1) * page_size
+    page_records = filtered_records[start_offset : start_offset + page_size]
+    return page_number, page_records, start_offset, total_pages
+
+
+@app.cell
+def _(mo, page_number, total_pages):
+    mo.md(f"**Page:** {page_number} of {total_pages}")
+    return
+
+
+@app.cell
+def _(page_records, pd, start_offset):
+    page_df = pd.DataFrame(
+        [
+            {
+                "row": start_offset + index,
+                "question_id": row["question_id"],
+                "model": row["model"],
+                "score": row["score"],
+                "passed": row["passed"],
+                "failure_count": row["failure_count"],
+                "active_failure_types": row["active_failure_types_text"],
+            }
+            for index, row in enumerate(page_records)
+        ]
+    )
+    page_df
+    return
+
+
+@app.cell
+def _(mo, page_records, start_offset):
+    result_options = [
+        (
+            f"{start_offset + index}: {row['question_id']} | {row['model']} | "
+            f"score={float(row['score']):.2f} | {row['active_failure_types_text'] or 'no flags'}"
+        )
+        for index, row in enumerate(page_records)
+    ]
+    result_options = result_options or ["No matching rows"]
+    selected_result_dropdown = mo.ui.dropdown(
+        options=result_options,
+        value=result_options[0],
+        label="Select result on this page",
+        full_width=True,
+    )
+    selected_result_dropdown
+    return result_options, selected_result_dropdown
+
+
+@app.cell
+def _(page_records, result_options, selected_result_dropdown):
+    if page_records and selected_result_dropdown.value in result_options:
+        selected_page_index = result_options.index(selected_result_dropdown.value)
+        selected_record = page_records[selected_page_index]
     else:
         selected_record = {}
     return (selected_record,)
