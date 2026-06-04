@@ -48,6 +48,24 @@ srd-eval-grade --answers runs/no_rag/<run_id>/answers.jsonl --judge-provider ope
 
 Scores are written next to the answer workbook as `answers.deepeval_scores.jsonl`.
 
+## Gather RAG Answers
+
+The RAG gatherer uses the tracked SRD embedding artifact and a local Chroma DB:
+
+```powershell
+uv run python -m srd_eval.gather_rag --limit 3
+```
+
+It writes immutable answer workbooks to `runs/rag/<run_id>/answers.jsonl`.
+Use `--workers 4` to tune concurrent answer requests and `--top-k 6` to tune retrieval breadth.
+The command retrieves SRD context once per question, reuses that context across all configured models, and stores the retrieved chunk evidence with each answer row.
+
+Resume an interrupted run with:
+
+```powershell
+uv run python -m srd_eval.gather_rag --run-id <run_id> --resume
+```
+
 ## Preserved Baseline Run
 
 The repository includes a completed no-RAG baseline workbook for analysis and presentation:
@@ -75,6 +93,7 @@ When run as a script, it uses dry-run placeholder answers so checks do not spend
 - `OPENROUTER_API_KEY`: required for answer gathering and OpenRouter-backed judging.
 - `OPENROUTER_MODELS`: optional comma-separated default gather models.
 - `OPENROUTER_SITE_URL`: optional OpenRouter referer metadata.
+- `OPENROUTER_EMBEDDING_MODEL`: optional RAG embedding model; defaults to `openai/text-embedding-3-small`.
 - `DEEPEVAL_JUDGE_PROVIDER`: `openrouter` or `deepeval`; defaults to `deepeval` if unset.
 - `DEEPEVAL_JUDGE_MODEL`: default judge model; defaults to `gpt-4.1` if unset.
 - `OPENAI_API_KEY`: needed only for native DeepEval/OpenAI judging.

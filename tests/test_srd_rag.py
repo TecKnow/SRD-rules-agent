@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from srd_eval.io import append_jsonl, read_jsonl
+from srd_eval.gather_rag import chroma_metadata, retrieve_context
 from srd_rag.embed_srd import (
     ChunkConfig,
     OpenRouterEmbeddingsClient,
@@ -217,3 +218,30 @@ def test_embedding_client_requires_key(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
         OpenRouterEmbeddingsClient(api_key=None)
+
+
+def test_chroma_metadata_stringifies_non_scalar_values() -> None:
+    assert chroma_metadata({"a": "ok", "b": ["x", "y"], "c": 3}) == {"a": "ok", "b": "['x', 'y']", "c": 3}
+
+
+def test_retrieve_context_normalizes_chroma_query_result() -> None:
+    class FakeCollection:
+        def query(self, **kwargs):
+            assert kwargs["n_results"] == 2
+            return {
+                "ids": [["chunk-1", "chunk-2"]],
+                "documents": [["First rule", "Second rule"]],
+                "metadatas": [[{"source_file": "a.md"}, {"source_file": "b.md"}]],
+                "distances": [[0.1, 0.2]],
+            }
+
+    context = retrieve_context(
+        collection=FakeCollection(),
+        row={"id": "q1"},
+        query_embedding=[0.1, 0.2],
+        top_k=2,
+    )
+
+    assert [item["chunk_id"] for item in context] == ["chunk-1", "chunk-2"]
+    assert context[0]["rank"] == 1
+    assert context[1]["text"] == "Second rule"

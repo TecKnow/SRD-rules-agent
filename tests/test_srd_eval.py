@@ -1,7 +1,9 @@
+import argparse
 import os
 from pathlib import Path
 
 from srd_eval.config import load_env
+from srd_eval import gather_rag
 from srd_eval.gather_no_rag import SYSTEM_PROMPT, completed_pairs, existing_run_id, make_user_prompt
 from srd_eval.grade_deepeval import default_output_path, expected_output
 from srd_eval.io import append_jsonl, read_jsonl, write_jsonl
@@ -107,3 +109,55 @@ def test_resume_helpers_find_successful_completed_pairs(tmp_path: Path) -> None:
 
     assert existing_run_id(path) == "run-1"
     assert completed_pairs(path) == {("q1", "m1")}
+
+
+def test_rag_prompt_includes_context_without_metadata_leak() -> None:
+    row = {
+        "id": "q1",
+        "question": "Can True Strike be used with Extra Attack?",
+        "category": "complex",
+        "difficulty": "medium",
+    }
+    context = [
+        {
+            "rank": 1,
+            "chunk_id": "spells.md::true-strike",
+            "distance": 0.1,
+            "metadata": {"source_file": "spells.md", "name": "True Strike"},
+            "text": "True Strike has special casting and attack text.",
+        }
+    ]
+
+    prompt = gather_rag.make_user_prompt(row, context)
+
+    assert "Can True Strike" in prompt
+    assert "True Strike has special" in prompt
+    assert "spells.md | True Strike" in prompt
+    assert "complex" not in prompt
+    assert "difficulty" not in prompt
+
+
+def test_rag_answer_record_includes_retrieval_evidence() -> None:
+    args = argparse.Namespace(
+        embedding_model="fake-embedding",
+        embeddings=Path("embeddings.jsonl"),
+        chroma_dir=Path("chroma"),
+        collection_name="collection",
+        top_k=6,
+    )
+    row = {"id": "q1", "question": "Question?", "category": "common"}
+    context = [{"rank": 1, "chunk_id": "chunk", "distance": 0.2, "metadata": {}, "text": "Rule text"}]
+
+    record = gather_rag.make_answer_record(
+        run_id="run",
+        row=row,
+        model="model",
+        retrieved_context=context,
+        result={"text": "Answer", "raw_response": {"ok": True}},
+        args=args,
+    )
+
+    assert record["pipeline"] == "rag_chroma"
+    assert record["answer"] == "Answer"
+    assert record["rag"]["top_k"] == 6
+    assert record["rag"]["retrieved_context"] == context

@@ -3,6 +3,7 @@ name = "srd-rules-agent"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "chromadb>=1.0.20",
     "deepeval>=3.7.0",
     "langchain-openrouter>=0.2.3",
     "langchain-text-splitters>=1.1.2",
@@ -14,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 srd-eval-gather = "srd_eval.gather_no_rag:main"
+srd-eval-gather-rag = "srd_eval.gather_rag:main"
 srd-eval-grade = "srd_eval.grade_deepeval:main"
 
 [tool.pytest.ini_options]
