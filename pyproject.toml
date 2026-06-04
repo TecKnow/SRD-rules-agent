@@ -5,6 +5,7 @@ requires-python = ">=3.14"
 dependencies = [
     "deepeval>=3.7.0",
     "langchain-openrouter>=0.2.3",
+    "langchain-text-splitters>=1.1.2",
     "marimo[recommended]>=0.23.8",
     "matplotlib>=3.10.9",
     "pandas>=2.3.3",
