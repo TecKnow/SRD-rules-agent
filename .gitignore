@@ -312,3 +312,7 @@ runs/**
 !runs/no_rag/**/
 !runs/no_rag/**/answers_for_grading.jsonl
 !runs/no_rag/**/answers_for_grading.deepeval_scores.success_only.jsonl
+!runs/rag/
+!runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/
+!runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/chunks.jsonl
+!runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/embeddings.jsonl
