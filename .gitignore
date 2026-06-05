@@ -316,3 +316,11 @@ runs/**
 !runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/
 !runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/chunks.jsonl
 !runs/rag/srd-5-2-1-openrouter-text-embedding-3-small/embeddings.jsonl
+
+# WASM RAG-comparison browser (apps/rag-comparison)
+#   docs/ holds the exported WASM site served by GitHub Pages and IS committed.
+#   The two paths below are regenerable build artifacts; rebuild the site with:
+#     srd-eval-build-wasm
+#     marimo export html-wasm apps/rag-comparison/notebook.py -o docs
+apps/rag-comparison/_site/
+apps/rag-comparison/public/
