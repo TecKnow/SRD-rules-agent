@@ -17,6 +17,7 @@ dependencies = [
 srd-eval-gather = "srd_eval.gather_no_rag:main"
 srd-eval-gather-rag = "srd_eval.gather_rag:main"
 srd-eval-grade = "srd_eval.grade_deepeval:main"
+srd-eval-build-wasm = "scripts.build_wasm_dataset:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
