@@ -1,0 +1,29 @@
+# Dependencies for the SRD rules agent runtime (native Windows + Python 3.14 is fine).
+#
+# CANONICAL install is the pyproject extra (keeps uv's lockfile in charge):
+#   uv sync --extra agent
+#
+# This file mirrors that extra for plain-pip / non-uv installs:
+#   uv pip install -r requirements-agent.txt    (or: python -m pip install -r ...)
+#
+# The agent talks to local model servers over HTTP, so it needs no torch itself.
+# Ollama (generation LLM + nomic encoder) is installed at the OS level, not via pip.
+
+langchain>=0.3
+langchain-openai>=0.2          # default generation backend (any OpenAI-compatible /v1 endpoint)
+langgraph>=0.2
+langchain-text-splitters>=1.1.2  # reused by srd_rag.embed_srd.chunk_corpus
+chromadb>=1.0.20
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+python-dotenv>=1.0
+
+# Optional: native Ollama generation backend (SRD_AGENT_GEN_BACKEND=ollama).
+# The default openai-compatible backend already talks to Ollama, so this is not required.
+# langchain-ollama>=0.2
+
+# Optional: in-process reranker/encoder path (instead of an HTTP TEI/Infinity server).
+# Heavy (pulls CUDA torch); install on demand if the bake-off selects it:
+#   uv pip install "sentence-transformers>=3.0"
+# sentence-transformers>=3.0

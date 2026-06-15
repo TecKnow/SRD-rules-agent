@@ -147,3 +147,58 @@ answers.  I can use openrouter.ai to do this with a single API key and from
 a single budget.
 
 I'm considering a package called deepeval for evaluating the results.
+
+## Building the local agent
+
+### Conclusions up front
+
+The research established that RAG-grounding substantially improves SRD 5.2.1 answers
+(avg judged score 0.457 → 0.633; see
+[reports/rag-vs-no-rag-performance.md](reports/rag-vs-no-rag-performance.md)). With the
+thesis proven, the next phase is an interactive product: a **local, offline, tool-using
+agent** in [srd_agent/](srd_agent/README.md).
+
+### Decisions
+
+- **Fully local / offline / free by default.** Generation uses an **OpenAI-compatible**
+  backend pointed at a local **Ollama** `/v1` endpoint running `qwen2.5:7b-instruct` — no
+  compute fees, no hosted API for the agent's own answers. Because the backend is
+  OpenAI-compatible, the same app retargets LM Studio, vLLM, a shared local server, or a
+  hosted API via `OPENAI_BASE_URL` / `OPENAI_API_KEY` with no code change. (OpenRouter is
+  still used only as the bake-off *judge*, consistent with the research methodology.)
+- **Few services for the target user.** The intended setup is one semi-technical person
+  configuring this for their player group, so the default keeps dependencies minimal: the
+  *same* local endpoint serves both chat and the `nomic-embed-text` encoder (one service),
+  and the reranker is **optional and off by default** (it would add a second service or a
+  torch dependency).
+- **Tool-using agent on LangChain/LangGraph.** `create_react_agent` gives the model a real
+  tool loop around a `search_srd` retrieval tool, plus per-conversation memory.
+- **Retrieval upgraded to encoder → reranker.** Retrieval is a pluggable
+  encoder (embeddings) → Chroma vector search → cross-encoder reranker → top-k pipeline,
+  described as data so the same code path serves both the agent and a **bake-off** that
+  picks the encoder/reranker (and thus serving) by measured score rather than by guess.
+  Ollama has no rerank API, so the reranker rides on a TEI/Infinity HTTP server (or, if the
+  bake-off prefers it, in-process sentence-transformers).
+- **Local FastAPI service + thin chat UI.** The agent is built once at startup and reused so
+  Ollama keeps the model warm.
+- **Runs on native Windows + Python 3.14.** The agent is pure-Python HTTP clients (no torch),
+  and its compiled deps (`chromadb`, `pydantic`, `onnxruntime`, `tokenizers`, …) were verified
+  to import on the repo's 3.14 venv, so the agent installs there directly
+  ([requirements-agent.txt](requirements-agent.txt)) — no separate WSL/3.13 venv. (The original
+  WSL/3.13 plan was tied to a local `transformers`/`torch` generation stack; the Ollama pivot
+  removed that need.) WSL/Docker re-enters only if a **TEI reranker server** or the
+  **in-process sentence-transformers** reranker (CUDA torch) is later adopted.
+
+A VRAM check during planning found the GPU's ~7.3 GB in use was ordinary desktop GUI apps
+(browsers/Electron/a game), **not** a loaded model — nothing to unload; just close GPU-heavy
+apps before a run.
+
+### Deferred: research ↔ agent restructure
+
+To keep research and the agent product cleanly separated, the eval/analysis code and
+artifacts (`srd_eval`, root notebooks, `scripts`, `reports`, `runs`, `Resources`, `tests`)
+will move under a top-level `research/`, while shared infrastructure (`srd_rag` chunking,
+`data/` corpus) and the published `docs/` Pages site stay put. This touches many path
+references (`pyproject` scripts, `.gitignore` allowlist, `docs/index.md` links, build-script
+defaults), so it is **deferred until after agent v1** and after the in-flight `apps/question-set`
+work lands, to avoid tangling the two.

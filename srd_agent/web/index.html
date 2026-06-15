@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SRD 5.2.1 Rules Agent</title>
+  <style>
+    :root { color-scheme: light dark; --accent: #6d4aff; --bg: #14151a; --panel: #1e2029; --muted: #8a8f9c; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: #e8e9ed; }
+    header { padding: 14px 20px; border-bottom: 1px solid #2a2c36; display: flex; gap: 12px; align-items: baseline; }
+    header h1 { font-size: 16px; margin: 0; }
+    header .status { font-size: 12px; color: var(--muted); }
+    main { max-width: 820px; margin: 0 auto; padding: 16px; }
+    .msg { margin: 14px 0; padding: 12px 14px; border-radius: 10px; white-space: pre-wrap; }
+    .user { background: #23252f; }
+    .agent { background: var(--panel); border: 1px solid #2a2c36; }
+    .role { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+    details { margin-top: 10px; font-size: 13px; color: #c4c7d0; }
+    details summary { cursor: pointer; color: var(--muted); }
+    .cite { padding: 4px 0; border-top: 1px dashed #34374322; }
+    .cite b { color: #b7a6ff; font-weight: 600; }
+    form { display: flex; gap: 8px; margin-top: 16px; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; }
+    textarea { flex: 1; resize: vertical; min-height: 48px; padding: 10px; border-radius: 8px; border: 1px solid #2a2c36; background: #1a1c24; color: inherit; }
+    button { padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SRD 5.2.1 Rules Agent</h1>
+    <span class="status" id="status">connecting…</span>
+  </header>
+  <main>
+    <div id="log"></div>
+    <form id="form">
+      <textarea id="input" placeholder="Ask a D&D SRD 5.2.1 rules question…" autofocus></textarea>
+      <button id="send" type="submit">Ask</button>
+    </form>
+  </main>
+  <script>
+    const conversationId = crypto.randomUUID();
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const statusEl = document.getElementById("status");
+
+    function bubble(role, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.innerHTML = `<div class="role">${role}</div>`;
+      const body = document.createElement("div");
+      body.textContent = text;
+      div.appendChild(body);
+      log.appendChild(div);
+      div.scrollIntoView({ behavior: "smooth", block: "end" });
+      return body;
+    }
+
+    function addCitations(afterBody, citations, toolTrace) {
+      if (!citations?.length && !toolTrace?.length) return;
+      const det = document.createElement("details");
+      const calls = (toolTrace || []).filter(t => t.type === "call").length;
+      det.innerHTML = `<summary>${citations?.length || 0} sources · ${calls} search call(s)</summary>`;
+      for (const c of citations || []) {
+        const row = document.createElement("div");
+        row.className = "cite";
+        row.innerHTML = `<b>[${c.rank}] ${c.source ?? c.source_file ?? "?"}</b>`;
+        det.appendChild(row);
+      }
+      afterBody.parentElement.appendChild(det);
+    }
+
+    async function refreshStatus() {
+      try {
+        const r = await fetch("./health");
+        const h = await r.json();
+        statusEl.textContent = `${h.status} · ${h.gen_model} · ${h.index_chunks} chunks · ${h.retrieval}`;
+      } catch { statusEl.textContent = "offline"; }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      bubble("user", message);
+      input.value = "";
+      sendBtn.disabled = true;
+      const body = bubble("agent", "…");
+      try {
+        const r = await fetch("./chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, conversation_id: conversationId }),
+        });
+        const data = await r.json();
+        body.textContent = data.answer || "(no answer)";
+        addCitations(body, data.citations, data.tool_trace);
+      } catch (err) {
+        body.textContent = "Error: " + err;
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+
+    refreshStatus();
+  </script>
+</body>
+</html>

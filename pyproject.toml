@@ -8,9 +8,22 @@ dependencies = [
     "langchain-openrouter>=0.2.3",
     "langchain-text-splitters>=1.1.2",
     "marimo[recommended]>=0.23.8",
+    "markdown>=3.6",
     "matplotlib>=3.10.9",
     "pandas>=2.3.3",
     "python-dotenv>=1.2.2",
+]
+
+[project.optional-dependencies]
+# Local tool-using agent (srd_agent). Install with: uv sync --extra agent
+# chromadb / langchain-text-splitters / python-dotenv come from the base deps above.
+agent = [
+    "langchain>=0.3",
+    "langchain-openai>=0.2",
+    "langgraph>=0.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
 ]
 
 [project.scripts]
@@ -18,6 +31,8 @@ srd-eval-gather = "srd_eval.gather_no_rag:main"
 srd-eval-gather-rag = "srd_eval.gather_rag:main"
 srd-eval-grade = "srd_eval.grade_deepeval:main"
 srd-eval-build-wasm = "scripts.build_wasm_dataset:main"
+srd-agent-build-index = "srd_agent.build_index:main"
+srd-agent-bakeoff = "srd_agent.bakeoff:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
