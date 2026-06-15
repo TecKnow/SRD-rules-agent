@@ -1,306 +1,368 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="./favicon.ico" />
-    <!-- Preload is necessary because we show these images when we disconnect from the server,
-    but at that point we cannot load these images from the server -->
-    <link rel="preload" href="./assets/gradient-yHQUC_QB.png" as="image" />
-    <link rel="preload" href="./assets/noise-60BoTA8O.png" as="image" />
-    <!-- Preload the fonts -->
-    <link rel="preload" href="./assets/Lora-VariableFont_wght-CZceb_kH.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="./assets/PTSans-Regular-Bam3NpBI.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="./assets/PTSans-Bold-C_DwAp7Z.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="./assets/FiraMono-Regular-CEsLFVD9.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="./assets/FiraMono-Medium-D5MAsWEG.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="./assets/FiraMono-Bold-C6PDArdf.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="a marimo app" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.json" />
+    <title>Retrieval Improves SRD Rules QA, But Not Uniformly</title>
+    <meta name="description" content="A D&amp;D SRD 5.2.1 benchmark study comparing model answers with and without retrieved rules context." />
+    <link rel="icon" href="./rag-comparison/favicon.ico" />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #191919;
+        --muted: #5d646b;
+        --line: #d7d7d7;
+        --paper: #fbfaf7;
+        --panel: #ffffff;
+        --accent: #255d68;
+        --accent-soft: #eef5f6;
+        --code: #f1f1ef;
+        font-family: Georgia, "Times New Roman", serif;
+      }
 
-    <script data-marimo="true">
-      function __resizeIframe(obj) {
-        const scrollbarHeight = 20; // Max between windows, mac, and linux
+      * {
+        box-sizing: border-box;
+      }
 
-        function setHeight() {
-          // Guard against race condition where iframe isn't ready
-          if (!obj.contentWindow?.document?.documentElement) {
-            return;
-          }
-          const element = obj.contentWindow.document.documentElement;
-          // If there is no vertical scrollbar, we don't need to resize the iframe
-          if (element.scrollHeight === element.clientHeight) {
-            return;
-          }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-size: 18px;
+        line-height: 1.62;
+        margin: 0;
+      }
 
-          // Create a new height that includes the scrollbar height if it's visible
-          const hasHorizontalScrollbar = element.scrollWidth > element.clientWidth;
-          const newHeight = element.scrollHeight + (hasHorizontalScrollbar ? scrollbarHeight : 0);
+      a {
+        color: var(--accent);
+        text-underline-offset: 0.16em;
+      }
 
-          // Only update the height if it's different from the current height
-          if (obj.style.height !== `${newHeight}px`) {
-            obj.style.height = `${newHeight}px`;
-          }
+      .page {
+        margin: 0 auto;
+        max-width: 980px;
+        padding: 56px 24px 80px;
+      }
+
+      .paper {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: 0 14px 45px rgba(25, 25, 25, 0.07);
+        padding: 56px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-weight: 600;
+        letter-spacing: 0;
+        line-height: 1.18;
+      }
+
+      h1 {
+        border-bottom: 1px solid var(--line);
+        font-size: clamp(2.1rem, 5vw, 3.6rem);
+        margin: 0 0 18px;
+        padding-bottom: 24px;
+      }
+
+      h2 {
+        border-top: 1px solid var(--line);
+        font-size: 1.65rem;
+        margin: 44px 0 14px;
+        padding-top: 28px;
+      }
+
+      h3 {
+        font-size: 1.18rem;
+        margin: 28px 0 8px;
+      }
+
+      h1 + p {
+        color: var(--muted);
+        font-size: 1.18rem;
+        margin-top: 0;
+      }
+
+      p {
+        margin: 0 0 1rem;
+      }
+
+      ul,
+      ol {
+        padding-left: 1.4rem;
+      }
+
+      li {
+        margin: 0.22rem 0;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 0.96rem;
+        margin: 20px 0 28px;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--accent-soft);
+        font-weight: 650;
+      }
+
+      td[align="right"],
+      th[align="right"] {
+        text-align: right;
+      }
+
+      img {
+        border: 1px solid var(--line);
+        display: block;
+        height: auto;
+        margin: 24px auto 8px;
+        max-width: 100%;
+      }
+
+      img + em {
+        color: var(--muted);
+        display: block;
+        font-size: 0.92rem;
+        line-height: 1.4;
+        margin: 0 auto 24px;
+        max-width: 820px;
+        text-align: center;
+      }
+
+      code {
+        background: var(--code);
+        border-radius: 3px;
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 0.88em;
+        padding: 0.08em 0.28em;
+      }
+
+      pre {
+        background: #242424;
+        border-radius: 4px;
+        color: #f6f2e9;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        overflow-x: auto;
+        padding: 16px;
+      }
+
+      pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+      }
+
+      blockquote {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        margin: 22px 0;
+        padding: 14px 18px;
+      }
+
+      .site-nav {
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        display: flex;
+        flex-wrap: wrap;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 0.92rem;
+        gap: 14px;
+        justify-content: space-between;
+        margin-bottom: 34px;
+        padding-bottom: 14px;
+      }
+
+      .site-nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .site-nav a:hover {
+        color: var(--accent);
+        text-decoration: underline;
+      }
+
+      .footnote {
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-top: 44px;
+        padding-top: 18px;
+      }
+
+      @media (max-width: 720px) {
+        body {
+          font-size: 16px;
         }
 
-        // Resize the iframe to the height of the content and bottom scrollbar height
-        setHeight();
+        .page {
+          padding: 0;
+        }
 
-        // Resize the iframe when the content changes
-        const resizeObserver = new ResizeObserver((_entries) => {
-          setHeight();
-        });
-        // Only observe if iframe content is ready
-        if (obj.contentWindow?.document?.body) {
-          resizeObserver.observe(obj.contentWindow.document.body);
+        .paper {
+          border-left: 0;
+          border-right: 0;
+          box-shadow: none;
+          padding: 28px 20px 48px;
+        }
+
+        table {
+          display: block;
+          overflow-x: auto;
         }
       }
-    </script>
-    <marimo-filename hidden>notebook.py</marimo-filename>
-    <!-- TODO(Trevor): Legacy, required by VS Code plugin. Remove when plugin is updated (see marimo/server/_templates/template.py) -->
-    <marimo-version data-version="{{ version }}" hidden></marimo-version>
-    <marimo-user-config data-config="{{ user_config }}" hidden></marimo-user-config>
-    <marimo-server-token data-token="{{ server_token }}" hidden></marimo-server-token>
-    <!-- /TODO -->
-    <title>notebook</title>
-    <script type="module" crossorigin src="./assets/index-CA2sQKnW.js"></script>
-    <link rel="modulepreload" crossorigin href="./assets/preload-helper-DdZsAcJe.js">
-    <link rel="modulepreload" crossorigin href="./assets/chunk-LvLJmgfZ.js">
-    <link rel="modulepreload" crossorigin href="./assets/react-Bj1aDYRI.js">
-    <link rel="modulepreload" crossorigin href="./assets/compiler-runtime-B3qBwwSJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/jsx-runtime-BqBOg78p.js">
-    <link rel="modulepreload" crossorigin href="./assets/useEventListener-DvoEXWke.js">
-    <link rel="modulepreload" crossorigin href="./assets/defaultLocale-DPBdGRrH.js">
-    <link rel="modulepreload" crossorigin href="./assets/precisionRound-NX56vp6K.js">
-    <link rel="modulepreload" crossorigin href="./assets/defaultLocale-Lfi0pexn.js">
-    <link rel="modulepreload" crossorigin href="./assets/vega-loader.browser-xq8miGHn.js">
-    <link rel="modulepreload" crossorigin href="./assets/utils-DQRuLEof.js">
-    <link rel="modulepreload" crossorigin href="./assets/clsx-Dz_KRrWq.js">
-    <link rel="modulepreload" crossorigin href="./assets/cn-DCUzRj2J.js">
-    <link rel="modulepreload" crossorigin href="./assets/badge-DOX1Xxa9.js">
-    <link rel="modulepreload" crossorigin href="./assets/button-BbCh-29a.js">
-    <link rel="modulepreload" crossorigin href="./assets/react-dom-CSu739Rf.js">
-    <link rel="modulepreload" crossorigin href="./assets/fullscreen-eipL3i3Y.js">
-    <link rel="modulepreload" crossorigin href="./assets/menu-items-DcP01QzW.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-BdyjRhEt.js">
-    <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-D5guW7EU.js">
-    <link rel="modulepreload" crossorigin href="./assets/check-BH35Ndha.js">
-    <link rel="modulepreload" crossorigin href="./assets/x-C-6liIBr.js">
-    <link rel="modulepreload" crossorigin href="./assets/select-DZcFyKFQ.js">
-    <link rel="modulepreload" crossorigin href="./assets/tooltip-DTV9tlSr.js">
-    <link rel="modulepreload" crossorigin href="./assets/use-toast-ERM44-k9.js">
-    <link rel="modulepreload" crossorigin href="./assets/useEvent-D91BmmQi.js">
-    <link rel="modulepreload" crossorigin href="./assets/invariant-BUdrueMv.js">
-    <link rel="modulepreload" crossorigin href="./assets/isObject-DvLSfCY5.js">
-    <link rel="modulepreload" crossorigin href="./assets/_baseFor-DKD1r8uL.js">
-    <link rel="modulepreload" crossorigin href="./assets/merge-_9WLTEyt.js">
-    <link rel="modulepreload" crossorigin href="./assets/zod-H_cgTO0M.js">
-    <link rel="modulepreload" crossorigin href="./assets/utils-Wvjk_Y4h.js">
-    <link rel="modulepreload" crossorigin href="./assets/Deferred-DWBqOhWa.js">
-    <link rel="modulepreload" crossorigin href="./assets/uuid-D_zLHhNi.js">
-    <link rel="modulepreload" crossorigin href="./assets/DeferredRequestRegistry-CzVJLtsG.js">
-    <link rel="modulepreload" crossorigin href="./assets/constants-DMpttj8Q.js">
-    <link rel="modulepreload" crossorigin href="./assets/session-DGdfs0bJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/config-C2lTvbuU.js">
-    <link rel="modulepreload" crossorigin href="./assets/requests-DIwGYs0l.js">
-    <link rel="modulepreload" crossorigin href="./assets/useLifecycle-DieWOfXE.js">
-    <link rel="modulepreload" crossorigin href="./assets/useNonce-DfoVjkkH.js">
-    <link rel="modulepreload" crossorigin href="./assets/useTheme-Kwyx4PvL.js">
-    <link rel="modulepreload" crossorigin href="./assets/arrays-DYDL-3-i.js">
-    <link rel="modulepreload" crossorigin href="./assets/strings-wdPMRf6Z.js">
-    <link rel="modulepreload" crossorigin href="./assets/once-DRroIaBz.js">
-    <link rel="modulepreload" crossorigin href="./assets/capabilities-A_KhFcGV.js">
-    <link rel="modulepreload" crossorigin href="./assets/createReducer-CI9qeK_X.js">
-    <link rel="modulepreload" crossorigin href="./assets/paths-SFhaqGlE.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-BrR4M-k3.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-HlsDto3K.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-CHcznzB-.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-BU26XwgJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-COs9gIu5.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-BZr6MMV-.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-DCqxOggh.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-DkA__6UI.js">
-    <link rel="modulepreload" crossorigin href="./assets/dist-C9ZB41s2.js">
-    <link rel="modulepreload" crossorigin href="./assets/stex-lcoTi-7o.js">
-    <link rel="modulepreload" crossorigin href="./assets/toDate-B5A0DFEz.js">
-    <link rel="modulepreload" crossorigin href="./assets/purify.es-DvRMX74T.js">
-    <link rel="modulepreload" crossorigin href="./assets/cjs-BRGiG41H.js">
-    <link rel="modulepreload" crossorigin href="./assets/isSymbol-BT6B8Bon.js">
-    <link rel="modulepreload" crossorigin href="./assets/now-CsYTPAhW.js">
-    <link rel="modulepreload" crossorigin href="./assets/debounce-DhnxH9Rh.js">
-    <link rel="modulepreload" crossorigin href="./assets/database-zap-kIkTfzTX.js">
-    <link rel="modulepreload" crossorigin href="./assets/main-B0OX4z33.js">
-    <link rel="modulepreload" crossorigin href="./assets/cells-Dnu4nDoy.js">
-    <link rel="modulepreload" crossorigin href="./assets/ErrorBoundary-DyYDV0HI.js">
-    <link rel="modulepreload" crossorigin href="./assets/kbd-BJB2rf7K.js">
-    <link rel="modulepreload" crossorigin href="./assets/useInstallPackage-hKfTes-m.js">
-    <link rel="modulepreload" crossorigin href="./assets/alert-dialog-BqFLkbUc.js">
-    <link rel="modulepreload" crossorigin href="./assets/dialog-DqOQT_n4.js">
-    <link rel="modulepreload" crossorigin href="./assets/useDebounce-_BZcy6gx.js">
-    <link rel="modulepreload" crossorigin href="./assets/numbers-mY4EY0yG.js">
-    <link rel="modulepreload" crossorigin href="./assets/SSRProvider-BIDQNg9Q.js">
-    <link rel="modulepreload" crossorigin href="./assets/context-C1Tm_47t.js">
-    <link rel="modulepreload" crossorigin href="./assets/useNumberFormatter-CW4V-fpE.js">
-    <link rel="modulepreload" crossorigin href="./assets/usePress-jH2RfcUG.js">
-    <link rel="modulepreload" crossorigin href="./assets/input-CVE-gIjt.js">
-    <link rel="modulepreload" crossorigin href="./assets/ImperativeModal-DEC1mXgV.js">
-    <link rel="modulepreload" crossorigin href="./assets/cell-link-PQYiMZw1.js">
-    <link rel="modulepreload" crossorigin href="./assets/multi-map-CUuNtzHt.js">
-    <link rel="modulepreload" crossorigin href="./assets/alert-DrHguQlr.js">
-    <link rel="modulepreload" crossorigin href="./assets/chevron-right-CG5QYXYk.js">
-    <link rel="modulepreload" crossorigin href="./assets/dropdown-menu-CR7cnzLX.js">
-    <link rel="modulepreload" crossorigin href="./assets/links-B8WzCnbo.js">
-    <link rel="modulepreload" crossorigin href="./assets/useRunCells-C0BPo9m1.js">
-    <link rel="modulepreload" crossorigin href="./assets/copy-Ch48HVPK.js">
-    <link rel="modulepreload" crossorigin href="./assets/copy-BwrPA9zQ.js">
-    <link rel="modulepreload" crossorigin href="./assets/copy-icon-BdZPgXgo.js">
-    <link rel="modulepreload" crossorigin href="./assets/RenderHTML-B5r25cP5.js">
-    <link rel="modulepreload" crossorigin href="./assets/datasource-I-LOgxeP.js">
-    <link rel="modulepreload" crossorigin href="./assets/state-D9EoHCkz.js">
-    <link rel="modulepreload" crossorigin href="./assets/package-B8oXOUM-.js">
-    <link rel="modulepreload" crossorigin href="./assets/sparkles-CC9Bko6a.js">
-    <link rel="modulepreload" crossorigin href="./assets/MarimoErrorOutput-XWqnhvJ6.js">
-    <link rel="modulepreload" crossorigin href="./assets/spinner-UuZAUjoP.js">
-    <link rel="modulepreload" crossorigin href="./assets/html-to-image-D6SgvARi.js">
-    <link rel="modulepreload" crossorigin href="./assets/focus-BaOnnMs-.js">
-    <link rel="modulepreload" crossorigin href="./assets/useAsyncData-C5i0IRVM.js">
-    <link rel="modulepreload" crossorigin href="./assets/LazyAnyLanguageCodeMirror-GdhQ07zA.js">
-    <link rel="modulepreload" crossorigin href="./assets/micromark-factory-space-BUQpMdx2.js">
-    <link rel="modulepreload" crossorigin href="./assets/chunk-5FQGJX7Z-BSzccEgu.js">
-    <link rel="modulepreload" crossorigin href="./assets/markdown-renderer-BQ-BQLiJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/command-2NPJCYDa.js">
-    <link rel="modulepreload" crossorigin href="./assets/field-DNlzfMKW.js">
-    <link rel="modulepreload" crossorigin href="./assets/popover-Bz_0Vkyf.js">
-    <link rel="modulepreload" crossorigin href="./assets/errors-iwK4b4VF.js">
-    <link rel="modulepreload" crossorigin href="./assets/download-B1QFVDP-.js">
-    <link rel="modulepreload" crossorigin href="./assets/table-DQE9hQzM.js">
-    <link rel="modulepreload" crossorigin href="./assets/useIframeCapabilities-DPVTppnD.js">
-    <link rel="modulepreload" crossorigin href="./assets/error-banner-CLO6LFll.js">
-    <link rel="modulepreload" crossorigin href="./assets/formats-BRq458WH.js">
-    <link rel="modulepreload" crossorigin href="./assets/en-US-C7vnqfgk.js">
-    <link rel="modulepreload" crossorigin href="./assets/isValid-DdlR4-BY.js">
-    <link rel="modulepreload" crossorigin href="./assets/dates-DI1TvEEK.js">
-    <link rel="modulepreload" crossorigin href="./assets/maps-n3GaPJwv.js">
-    <link rel="modulepreload" crossorigin href="./assets/extends-Dqvpuc10.js">
-    <link rel="modulepreload" crossorigin href="./assets/emotion-is-prop-valid.esm-Dangy3Bv.js">
-    <link rel="modulepreload" crossorigin href="./assets/useDateFormatter-d3yglQmW.js">
-    <link rel="modulepreload" crossorigin href="./assets/react-icons.esm--O4lBTlZ.js">
-    <link rel="modulepreload" crossorigin href="./assets/RSPContexts-Bk1r00gJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/table-6NxtGaCm.js">
-    <link rel="modulepreload" crossorigin href="./assets/ellipsis-KAhMaCIV.js">
-    <link rel="modulepreload" crossorigin href="./assets/external-link-BTNxSavU.js">
-    <link rel="modulepreload" crossorigin href="./assets/message-circle-1YLdnr8A.js">
-    <link rel="modulepreload" crossorigin href="./assets/trash-2-BJLYnZpG.js">
-    <link rel="modulepreload" crossorigin href="./assets/react-resizable-panels.browser.esm-Ce2ksurd.js">
-    <link rel="modulepreload" crossorigin href="./assets/JsonOutput-05-R3eil.js">
-    <link rel="modulepreload" crossorigin href="./assets/chart-no-axes-column-nqk474t8.js">
-    <link rel="modulepreload" crossorigin href="./assets/square-function-blYaQso8.js">
-    <link rel="modulepreload" crossorigin href="./assets/spec-D1ptWKg6.js">
-    <link rel="modulepreload" crossorigin href="./assets/ellipsis-vertical-CkwWkOQL.js">
-    <link rel="modulepreload" crossorigin href="./assets/refresh-cw-a_9k9BK7.js">
-    <link rel="modulepreload" crossorigin href="./assets/tree-actions-DY8FUp3V.js">
-    <link rel="modulepreload" crossorigin href="./assets/components-zB5yT_R8.js">
-    <link rel="modulepreload" crossorigin href="./assets/column-preview-BLIWbdOX.js">
-    <link rel="modulepreload" crossorigin href="./assets/icons-8tfAri2V.js">
-    <link rel="modulepreload" crossorigin href="./assets/radio-group-rsi1ibXY.js">
-    <link rel="modulepreload" crossorigin href="./assets/floating-outline-DbOtUfo-.js">
-    <link rel="modulepreload" crossorigin href="./assets/objectWithoutPropertiesLoose-DoKw85w0.js">
-    <link rel="modulepreload" crossorigin href="./assets/esm-Cb2bnV6o.js">
-    <link rel="modulepreload" crossorigin href="./assets/eye-off-BT-KOYV5.js">
-    <link rel="modulepreload" crossorigin href="./assets/plus-CxkHs8QM.js">
-    <link rel="modulepreload" crossorigin href="./assets/readonly-python-code-BKYj8PNf.js">
-    <link rel="modulepreload" crossorigin href="./assets/file-headphone-B3fuktN0.js">
-    <link rel="modulepreload" crossorigin href="./assets/file-HTLbeC2b.js">
-    <link rel="modulepreload" crossorigin href="./assets/image-BIibSXT6.js">
-    <link rel="modulepreload" crossorigin href="./assets/file-icons-B6DaZdP0.js">
-    <link rel="modulepreload" crossorigin href="./assets/switch-BtkQp293.js">
-    <link rel="modulepreload" crossorigin href="./assets/events-CBm-hwqS.js">
-    <link rel="modulepreload" crossorigin href="./assets/globals-CpVAcN9Z.js">
-    <link rel="modulepreload" crossorigin href="./assets/share-oorMPghT.js">
-    <link rel="modulepreload" crossorigin href="./assets/blob-3_FN0u9S.js">
-    <link rel="modulepreload" crossorigin href="./assets/memoize-Tp7rARFe.js">
-    <link rel="modulepreload" crossorigin href="./assets/get-C-qh_et5.js">
-    <link rel="modulepreload" crossorigin href="./assets/_baseSet-CxV9N1bc.js">
-    <link rel="modulepreload" crossorigin href="./assets/state-BXNNuw9g.js">
-    <link rel="modulepreload" crossorigin href="./assets/label-xHqFtfdz.js">
-    <link rel="modulepreload" crossorigin href="./assets/textarea-BBTcSr-i.js">
-    <link rel="modulepreload" crossorigin href="./assets/refresh-ccw-DLc784Sj.js">
-    <link rel="modulepreload" crossorigin href="./assets/form-BjUJP6PJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/renderShortcut-DK-VjfaX.js">
-    <link rel="modulepreload" crossorigin href="./assets/useBoolean-B8LMGUHl.js">
-    <link rel="modulepreload" crossorigin href="./assets/useDeepCompareMemoize-CWcgQCbT.js">
-    <link rel="modulepreload" crossorigin href="./assets/types-BYwxXaSY.js">
-    <link rel="modulepreload" crossorigin href="./assets/semaphore-X3ApuO41.js">
-    <link rel="modulepreload" crossorigin href="./assets/fileToBase64-BeYUTUzO.js">
-    <link rel="modulepreload" crossorigin href="./assets/pathUtils-vgBYIo5B.js">
-    <link rel="modulepreload" crossorigin href="./assets/prop-types-DVDiRdwc.js">
-    <link rel="modulepreload" crossorigin href="./assets/es-au8YY-8E.js">
-    <link rel="modulepreload" crossorigin href="./assets/hasIn-DiS_ryrS.js">
-    <link rel="modulepreload" crossorigin href="./assets/flatten-Dl4V1ub3.js">
-    <link rel="modulepreload" crossorigin href="./assets/pick-DqWUNly1.js">
-    <link rel="modulepreload" crossorigin href="./assets/code-xml-CZN6vNxu.js">
-    <link rel="modulepreload" crossorigin href="./assets/house-D2ldnAB9.js">
-    <link rel="modulepreload" crossorigin href="./assets/square-rACnnz-q.js">
-    <link rel="modulepreload" crossorigin href="./assets/triangle-alert-CJ0ZIqcz.js">
-    <link rel="modulepreload" crossorigin href="./assets/bundle.esm-BXIlAZ6T.js">
-    <link rel="stylesheet" crossorigin href="./assets/cells-jmgGt1lS.css">
-    <link rel="stylesheet" crossorigin href="./assets/markdown-renderer-DdDKmWlR.css">
-    <link rel="stylesheet" crossorigin href="./assets/JsonOutput-B7vuddcd.css">
-    <link rel="stylesheet" crossorigin href="./assets/index-DH00kbhV.css">
-  <marimo-wasm hidden=""></marimo-wasm>
-    <script>
-        if (window.location.protocol === 'file:') {
-            alert('Warning: This file must be served by an HTTP server to function correctly.');
-        }
-    </script>
-    
-    <style>
-        #save-button {
-            display: none !important;
-        }
-        #filename-input {
-            display: none !important;
-        }
     </style>
-    
-<script data-marimo="true">
-    Object.defineProperty(window, "__MARIMO_EXPORT_CONTEXT__", {
-        value: Object.freeze({
-            trusted: true,
-            notebookCode: "# /// script\n# requires-python = \"\u003E=3.12\"\n# dependencies = [\n#     \"marimo\",\n#     \"pandas\",\n# ]\n# ///\n\nimport marimo\n\n__generated_with = \"0.23.8\"\napp = marimo.App(width=\"full\")\n\n\n@app.cell\ndef _():\n    import json\n\n    import marimo as mo\n    import pandas as pd\n\n    return json, mo, pd\n\n\n@app.cell\ndef _(mo):\n    mo.md(\"\"\"\n    # SRD RAG vs no-RAG answer browser\n\n    Every model answered each D\u0026D SRD 5.2.1 benchmark question **twice** \u2014 once\n    with retrieved SRD context (**RAG**) and once from its own knowledge\n    (**no-RAG**) \u2014 and an LLM judge scored both. Use the filters to find pairs of\n    interest, then select a row to read the two answers and their judgements side\n    by side.\n    \"\"\")\n    return\n\n\n@app.cell\ndef _(json, mo):\n    # In WASM the notebook is served over HTTP and `notebook_location()` is a URL;\n    # locally it is the notebook directory. Handle both so the same file works in\n    # `marimo edit` and in the exported static site.\n    import urllib.request\n\n    _ref = mo.notebook_location() / \"public\" / \"comparison_data.json\"\n    _url = str(_ref)\n    if _url.startswith(\"http\"):\n        with urllib.request.urlopen(_url) as _resp:  # noqa: S310 - same-origin asset\n            data = json.loads(_resp.read().decode(\"utf-8\"))\n    else:\n        with open(_url, encoding=\"utf-8\") as _handle:\n            data = json.load(_handle)\n\n    pairs = data[\"pairs\"]\n    chunks = data[\"chunks\"]\n    summary = data[\"summary\"]\n    meta = data[\"meta\"]\n    failure_types = meta[\"failure_types\"]\n    pairs_by_key = {(row[\"question_id\"], row[\"model\"]): row for row in pairs}\n    return chunks, failure_types, meta, pairs, pairs_by_key, summary\n\n\n@app.cell\ndef _(meta, mo, summary):\n    mo.md(\n        f\"\"\"\n        **{summary[\"paired_count\"]} matched pairs** \u0026nbsp; \u00b7 \u0026nbsp;\n        avg score **{summary[\"average_no_rag_score\"]:.3f} \u2192 {summary[\"average_rag_score\"]:.3f}**\n        ({summary[\"average_score_delta\"]:+.3f}) \u0026nbsp; \u00b7 \u0026nbsp;\n        passes **{summary[\"no_rag_pass_count\"]} \u2192 {summary[\"rag_pass_count\"]}** \u0026nbsp; \u00b7 \u0026nbsp;\n        RAG improved **{summary[\"improved\"]}** / declined **{summary[\"declined\"]}** / unchanged **{summary[\"unchanged\"]}**\n\n        \u003Csub\u003EJudge: {meta[\"evaluator_version\"]} \u00b7 sources: {meta[\"sources\"][\"no_rag_scores\"]} vs {meta[\"sources\"][\"rag_scores\"]}\u003C/sub\u003E\n        \"\"\"\n    )\n    return\n\n\n@app.cell\ndef _(failure_types, mo, pairs):\n    def _options(field):\n        values = {str(row.get(field, \"\")) for row in pairs if str(row.get(field, \"\")).strip()}\n        return [\"All\"] + sorted(values)\n\n    model_filter = mo.ui.dropdown(_options(\"model\"), value=\"All\", label=\"Model\")\n    source_filter = mo.ui.dropdown(_options(\"source_model\"), value=\"All\", label=\"Question source\")\n    category_filter = mo.ui.dropdown(_options(\"category\"), value=\"All\", label=\"Category\")\n    difficulty_filter = mo.ui.dropdown(_options(\"difficulty\"), value=\"All\", label=\"Difficulty\")\n    contentiousness_filter = mo.ui.dropdown(_options(\"contentiousness\"), value=\"All\", label=\"Contentiousness\")\n    version_filter = mo.ui.dropdown(_options(\"version_specificity\"), value=\"All\", label=\"Version specificity\")\n\n    swing_preset = mo.ui.dropdown(\n        [\n            \"All swings\",\n            \"RAG improved (\u0394 \u003E 0)\",\n            \"RAG declined (\u0394 \u003C 0)\",\n            \"Big swings (|\u0394| \u2265 0.5)\",\n            \"Custom range (use slider)\",\n        ],\n        value=\"All swings\",\n        label=\"Score swing\",\n    )\n    swing_slider = mo.ui.range_slider(\n        start=-1.0,\n        stop=1.0,\n        step=0.05,\n        value=[-1.0, 1.0],\n        label=\"Custom \u0394 range\",\n        show_value=True,\n    )\n\n    failure_type_filter = mo.ui.dropdown([\"All\"] + list(failure_types), value=\"All\", label=\"Error category\")\n    failure_where_filter = mo.ui.dropdown(\n        [\n            \"Any side\",\n            \"Present in no-RAG\",\n            \"Present in RAG\",\n            \"New in RAG\",\n            \"Resolved by RAG\",\n            \"Changed either way\",\n        ],\n        value=\"Any side\",\n        label=\"Error applies to\",\n    )\n    question_filter = mo.ui.text(value=\"\", label=\"Question text / ID contains\", full_width=True)\n\n    mo.vstack(\n        [\n            mo.hstack([model_filter, source_filter, category_filter], justify=\"start\", gap=1),\n            mo.hstack([difficulty_filter, contentiousness_filter, version_filter], justify=\"start\", gap=1),\n            mo.hstack([swing_preset, swing_slider], justify=\"start\", gap=1),\n            mo.hstack([failure_type_filter, failure_where_filter], justify=\"start\", gap=1),\n            question_filter,\n        ],\n        gap=0.75,\n    )\n    return (\n        category_filter,\n        contentiousness_filter,\n        difficulty_filter,\n        failure_type_filter,\n        failure_where_filter,\n        model_filter,\n        question_filter,\n        source_filter,\n        swing_preset,\n        swing_slider,\n        version_filter,\n    )\n\n\n@app.cell\ndef _(\n    category_filter,\n    contentiousness_filter,\n    difficulty_filter,\n    failure_type_filter,\n    failure_where_filter,\n    model_filter,\n    pairs,\n    question_filter,\n    source_filter,\n    swing_preset,\n    swing_slider,\n    version_filter,\n):\n    def _categorical_match(row):\n        for field, control in (\n            (\"model\", model_filter),\n            (\"source_model\", source_filter),\n            (\"category\", category_filter),\n            (\"difficulty\", difficulty_filter),\n            (\"contentiousness\", contentiousness_filter),\n            (\"version_specificity\", version_filter),\n        ):\n            if control.value != \"All\" and str(row.get(field, \"\")) != control.value:\n                return False\n        return True\n\n    def _swing_match(row):\n        delta = row[\"score_delta\"]\n        preset = swing_preset.value\n        if preset == \"RAG improved (\u0394 \u003E 0)\":\n            return delta \u003E 0\n        if preset == \"RAG declined (\u0394 \u003C 0)\":\n            return delta \u003C 0\n        if preset == \"Big swings (|\u0394| \u2265 0.5)\":\n            return abs(delta) \u003E= 0.5\n        if preset == \"Custom range (use slider)\":\n            low, high = swing_slider.value\n            return low \u003C= delta \u003C= high\n        return True\n\n    def _failure_match(row):\n        failure_type = failure_type_filter.value\n        if failure_type == \"All\":\n            return True\n        no_rag_active = set(row[\"resolved_failure_types\"]) | set(row[\"shared_failure_types\"])\n        rag_active = set(row[\"new_failure_types\"]) | set(row[\"shared_failure_types\"])\n        where = failure_where_filter.value\n        if where == \"Present in no-RAG\":\n            return failure_type in no_rag_active\n        if where == \"Present in RAG\":\n            return failure_type in rag_active\n        if where == \"New in RAG\":\n            return failure_type in row[\"new_failure_types\"]\n        if where == \"Resolved by RAG\":\n            return failure_type in row[\"resolved_failure_types\"]\n        if where == \"Changed either way\":\n            return failure_type in row[\"changed_failure_types\"]\n        return failure_type in (no_rag_active | rag_active)\n\n    def _text_match(row):\n        needle = question_filter.value.strip().lower()\n        if not needle:\n            return True\n        return needle in row[\"question_id\"].lower() or needle in row[\"question\"].lower()\n\n    filtered = [\n        row\n        for row in pairs\n        if _categorical_match(row) and _swing_match(row) and _failure_match(row) and _text_match(row)\n    ]\n    filtered = sorted(filtered, key=lambda row: row[\"abs_score_delta\"], reverse=True)\n    return (filtered,)\n\n\n@app.cell\ndef _(filtered, mo, pd):\n    browse_df = pd.DataFrame(\n        [\n            {\n                \"question_id\": row[\"question_id\"],\n                \"model\": row[\"model\"],\n                \"source\": row.get(\"source_model\", \"\"),\n                \"category\": row[\"category\"],\n                \"difficulty\": row[\"difficulty\"],\n                \"no_rag\": round(row[\"no_rag_score\"], 2),\n                \"rag\": round(row[\"rag_score\"], 2),\n                \"\u0394\": round(row[\"score_delta\"], 2),\n                \"transition\": row[\"pass_transition\"],\n                \"rag_errors\": row[\"rag_failure_count\"],\n                \"top_source_file\": row[\"top_source_file\"],\n            }\n            for row in filtered\n        ]\n    )\n\n    if browse_df.empty:\n        browse_table = mo.ui.table(browse_df, selection=None, label=\"No matching pairs\")\n        _view = mo.md(\"**No pairs match the current filters.** Loosen a filter above.\")\n    else:\n        browse_table = mo.ui.table(\n            browse_df,\n            selection=\"single\",\n            page_size=20,\n            label=f\"{len(filtered)} matched pairs \u2014 sorted by |\u0394| desc; click a row to inspect\",\n        )\n        _view = browse_table\n\n    _view\n    return (browse_table,)\n\n\n@app.cell\ndef _(browse_table, filtered, pairs_by_key):\n    _selection = browse_table.value\n    selected_pair = None\n    try:\n        if _selection is not None and len(_selection) \u003E 0:\n            _row = _selection.iloc[0] if hasattr(_selection, \"iloc\") else _selection[0]\n            selected_pair = pairs_by_key.get((_row[\"question_id\"], _row[\"model\"]))\n    except (KeyError, IndexError, TypeError):\n        selected_pair = None\n    # Fall back to the top filtered pair so the detail panel is never empty.\n    if selected_pair is None and filtered:\n        selected_pair = filtered[0]\n    return (selected_pair,)\n\n\n@app.cell\ndef _(mo, selected_pair):\n    if selected_pair is None:\n        _detail_header = mo.md(\"Select a pair above to read the answers and judgements.\")\n    else:\n        _p = selected_pair\n        _detail_header = mo.md(\n            f\"\"\"\n            ## {_p[\"question_id\"]} \u0026nbsp;\u00b7\u0026nbsp; `{_p[\"model\"]}`\n\n            | | no-RAG | RAG |\n            | --- | --- | --- |\n            | **Score** | {_p[\"no_rag_score\"]:.2f} | {_p[\"rag_score\"]:.2f} (\u0394 {_p[\"score_delta\"]:+.2f}) |\n            | **Pass** | {\"\u2705\" if _p[\"no_rag_passed\"] else \"\u274c\"} | {\"\u2705\" if _p[\"rag_passed\"] else \"\u274c\"} |\n            | **Judged errors** | {_p[\"no_rag_failure_count\"]} | {_p[\"rag_failure_count\"]} |\n\n            **Source:** {_p.get(\"source_model\", \"\")} \u0026nbsp;\u00b7\u0026nbsp; **Category:** {_p[\"category\"]} \u0026nbsp;\u00b7\u0026nbsp;\n            **Difficulty:** {_p[\"difficulty\"]} \u0026nbsp;\u00b7\u0026nbsp; **Answer status:** {_p[\"answer_status\"]}\n\n            ### Question\n\n            {_p[\"question\"]}\n            \"\"\"\n        )\n    _detail_header\n    return\n\n\n@app.cell\ndef _(mo, selected_pair):\n    _no_rag_answer = selected_pair.get(\"no_rag_answer\", \"\") if selected_pair else \"\"\n    _rag_answer = selected_pair.get(\"rag_answer\", \"\") if selected_pair else \"\"\n    mo.hstack(\n        [\n            mo.ui.text_area(value=_no_rag_answer, rows=20, label=\"No-RAG answer\", disabled=True, full_width=True),\n            mo.ui.text_area(value=_rag_answer, rows=20, label=\"RAG answer\", disabled=True, full_width=True),\n        ],\n        widths=\"equal\",\n        gap=1,\n    )\n    return\n\n\n@app.cell\ndef _(mo, selected_pair):\n    _no_rag_rationale = selected_pair.get(\"no_rag_rationale\", \"\") if selected_pair else \"\"\n    _rag_rationale = selected_pair.get(\"rag_rationale\", \"\") if selected_pair else \"\"\n    mo.hstack(\n        [\n            mo.ui.text_area(value=_no_rag_rationale, rows=8, label=\"No-RAG judge rationale\", disabled=True, full_width=True),\n            mo.ui.text_area(value=_rag_rationale, rows=8, label=\"RAG judge rationale\", disabled=True, full_width=True),\n        ],\n        widths=\"equal\",\n        gap=1,\n    )\n    return\n\n\n@app.cell\ndef _(failure_types, mo, pd, selected_pair):\n    if selected_pair is None:\n        _failure_view = mo.md(\"\")\n    else:\n        _no_rag_active = set(selected_pair[\"resolved_failure_types\"]) | set(selected_pair[\"shared_failure_types\"])\n        _rag_active = set(selected_pair[\"new_failure_types\"]) | set(selected_pair[\"shared_failure_types\"])\n        _no_rag_notes = selected_pair.get(\"no_rag_failure_notes\", {})\n        _rag_notes = selected_pair.get(\"rag_failure_notes\", {})\n        _rows = []\n        for _failure_type in failure_types:\n            _in_no_rag = _failure_type in _no_rag_active\n            _in_rag = _failure_type in _rag_active\n            if not (_in_no_rag or _in_rag):\n                continue\n            _rows.append(\n                {\n                    \"error category\": _failure_type,\n                    \"no-RAG\": \"\u2022\" if _in_no_rag else \"\",\n                    \"RAG\": \"\u2022\" if _in_rag else \"\",\n                    \"change\": \"resolved by RAG\" if (_in_no_rag and not _in_rag) else (\"new in RAG\" if (_in_rag and not _in_no_rag) else \"both\"),\n                    \"no-RAG note\": _no_rag_notes.get(_failure_type, \"\"),\n                    \"RAG note\": _rag_notes.get(_failure_type, \"\"),\n                }\n            )\n        if _rows:\n            _failure_view = mo.vstack(\n                [mo.md(\"### Judged error categories\"), mo.ui.table(pd.DataFrame(_rows), selection=None, page_size=10)]\n            )\n        else:\n            _failure_view = mo.md(\"### Judged error categories\\n\\nNeither answer was flagged with any error category.\")\n    _failure_view\n    return\n\n\n@app.cell\ndef _(chunks, mo, pd, selected_pair):\n    if selected_pair is None:\n        _context_view = mo.md(\"\")\n    else:\n        _rows = []\n        for _ref in selected_pair.get(\"retrieved_context\", []):\n            _chunk = chunks.get(_ref[\"chunk_id\"], {})\n            _chunk_meta = _chunk.get(\"metadata\", {})\n            _rows.append(\n                {\n                    \"rank\": _ref.get(\"rank\"),\n                    \"distance\": _ref.get(\"distance\"),\n                    \"source_file\": _chunk_meta.get(\"source_file\", \"\"),\n                    \"name\": _chunk_meta.get(\"name\", \"\"),\n                    \"entity_type\": _chunk_meta.get(\"entity_type\", \"\"),\n                    \"h1\": _chunk_meta.get(\"h1\", \"\"),\n                    \"h2\": _chunk_meta.get(\"h2\", \"\"),\n                    \"chunk_id\": _ref[\"chunk_id\"],\n                }\n            )\n        _heading = mo.md(\n            \"### RAG retrieved context\\n\\nThe SRD chunks fed to the model for its RAG answer, \"\n            \"ordered by retrieval rank (lower distance = closer vector match).\"\n        )\n        if _rows:\n            _context_view = mo.vstack([_heading, mo.ui.table(pd.DataFrame(_rows), selection=None, page_size=10)])\n        else:\n            _context_view = mo.vstack([_heading, mo.md(\"_No retrieved context recorded for this answer._\")])\n    _context_view\n    return\n\n\n@app.cell\ndef _(chunks, mo, selected_pair):\n    _refs = selected_pair.get(\"retrieved_context\", []) if selected_pair else []\n    _options = [\n        f\"{_ref.get('rank')}: {chunks.get(_ref['chunk_id'], {}).get('metadata', {}).get('name', _ref['chunk_id'])}\"\n        f\" (distance {_ref.get('distance')})\"\n        for _ref in _refs\n    ]\n    chunk_picker = mo.ui.dropdown(\n        _options or [\"No retrieved context\"],\n        value=(_options[0] if _options else \"No retrieved context\"),\n        label=\"Inspect a retrieved chunk\",\n        full_width=True,\n    )\n    chunk_picker\n    return (chunk_picker,)\n\n\n@app.cell\ndef _(chunk_picker, chunks, json, mo, selected_pair):\n    _refs = selected_pair.get(\"retrieved_context\", []) if selected_pair else []\n    _options = [\n        f\"{_ref.get('rank')}: {chunks.get(_ref['chunk_id'], {}).get('metadata', {}).get('name', _ref['chunk_id'])}\"\n        f\" (distance {_ref.get('distance')})\"\n        for _ref in _refs\n    ]\n    if _refs and chunk_picker.value in _options:\n        _ref = _refs[_options.index(chunk_picker.value)]\n        _chunk = chunks.get(_ref[\"chunk_id\"], {})\n        _chunk_view = mo.vstack(\n            [\n                mo.ui.text_area(\n                    value=_chunk.get(\"text\", \"\"),\n                    rows=14,\n                    label=\"Retrieved chunk text\",\n                    disabled=True,\n                    full_width=True,\n                ),\n                mo.ui.text_area(\n                    value=json.dumps(_chunk.get(\"metadata\", {}), ensure_ascii=False, indent=2, sort_keys=True),\n                    rows=8,\n                    label=\"Chunk metadata\",\n                    disabled=True,\n                    full_width=True,\n                ),\n            ]\n        )\n    else:\n        _chunk_view = mo.md(\"\")\n    _chunk_view\n    return\n\n\nif __name__ == \"__main__\":\n    app.run()\n",
-        }),
-        writable: false,
-        configurable: false,
-    });
-</script>
-<marimo-code hidden="">%23%20%2F%2F%2F%20script%0A%23%20requires-python%20%3D%20%22%3E%3D3.12%22%0A%23%20dependencies%20%3D%20%5B%0A%23%20%20%20%20%20%22marimo%22%2C%0A%23%20%20%20%20%20%22pandas%22%2C%0A%23%20%5D%0A%23%20%2F%2F%2F%0A%0Aimport%20marimo%0A%0A__generated_with%20%3D%20%220.23.8%22%0Aapp%20%3D%20marimo.App(width%3D%22full%22)%0A%0A%0A%40app.cell%0Adef%20_()%3A%0A%20%20%20%20import%20json%0A%0A%20%20%20%20import%20marimo%20as%20mo%0A%20%20%20%20import%20pandas%20as%20pd%0A%0A%20%20%20%20return%20json%2C%20mo%2C%20pd%0A%0A%0A%40app.cell%0Adef%20_(mo)%3A%0A%20%20%20%20mo.md(%22%22%22%0A%20%20%20%20%23%20SRD%20RAG%20vs%20no-RAG%20answer%20browser%0A%0A%20%20%20%20Every%20model%20answered%20each%20D%26D%20SRD%205.2.1%20benchmark%20question%20**twice**%20%E2%80%94%20once%0A%20%20%20%20with%20retrieved%20SRD%20context%20(**RAG**)%20and%20once%20from%20its%20own%20knowledge%0A%20%20%20%20(**no-RAG**)%20%E2%80%94%20and%20an%20LLM%20judge%20scored%20both.%20Use%20the%20filters%20to%20find%20pairs%20of%0A%20%20%20%20interest%2C%20then%20select%20a%20row%20to%20read%20the%20two%20answers%20and%20their%20judgements%20side%0A%20%20%20%20by%20side.%0A%20%20%20%20%22%22%22)%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(json%2C%20mo)%3A%0A%20%20%20%20%23%20In%20WASM%20the%20notebook%20is%20served%20over%20HTTP%20and%20%60notebook_location()%60%20is%20a%20URL%3B%0A%20%20%20%20%23%20locally%20it%20is%20the%20notebook%20directory.%20Handle%20both%20so%20the%20same%20file%20works%20in%0A%20%20%20%20%23%20%60marimo%20edit%60%20and%20in%20the%20exported%20static%20site.%0A%20%20%20%20import%20urllib.request%0A%0A%20%20%20%20_ref%20%3D%20mo.notebook_location()%20%2F%20%22public%22%20%2F%20%22comparison_data.json%22%0A%20%20%20%20_url%20%3D%20str(_ref)%0A%20%20%20%20if%20_url.startswith(%22http%22)%3A%0A%20%20%20%20%20%20%20%20with%20urllib.request.urlopen(_url)%20as%20_resp%3A%20%20%23%20noqa%3A%20S310%20-%20same-origin%20asset%0A%20%20%20%20%20%20%20%20%20%20%20%20data%20%3D%20json.loads(_resp.read().decode(%22utf-8%22))%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20with%20open(_url%2C%20encoding%3D%22utf-8%22)%20as%20_handle%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20data%20%3D%20json.load(_handle)%0A%0A%20%20%20%20pairs%20%3D%20data%5B%22pairs%22%5D%0A%20%20%20%20chunks%20%3D%20data%5B%22chunks%22%5D%0A%20%20%20%20summary%20%3D%20data%5B%22summary%22%5D%0A%20%20%20%20meta%20%3D%20data%5B%22meta%22%5D%0A%20%20%20%20failure_types%20%3D%20meta%5B%22failure_types%22%5D%0A%20%20%20%20pairs_by_key%20%3D%20%7B(row%5B%22question_id%22%5D%2C%20row%5B%22model%22%5D)%3A%20row%20for%20row%20in%20pairs%7D%0A%20%20%20%20return%20chunks%2C%20failure_types%2C%20meta%2C%20pairs%2C%20pairs_by_key%2C%20summary%0A%0A%0A%40app.cell%0Adef%20_(meta%2C%20mo%2C%20summary)%3A%0A%20%20%20%20mo.md(%0A%20%20%20%20%20%20%20%20f%22%22%22%0A%20%20%20%20%20%20%20%20**%7Bsummary%5B%22paired_count%22%5D%7D%20matched%20pairs**%20%26nbsp%3B%20%C2%B7%20%26nbsp%3B%0A%20%20%20%20%20%20%20%20avg%20score%20**%7Bsummary%5B%22average_no_rag_score%22%5D%3A.3f%7D%20%E2%86%92%20%7Bsummary%5B%22average_rag_score%22%5D%3A.3f%7D**%0A%20%20%20%20%20%20%20%20(%7Bsummary%5B%22average_score_delta%22%5D%3A%2B.3f%7D)%20%26nbsp%3B%20%C2%B7%20%26nbsp%3B%0A%20%20%20%20%20%20%20%20passes%20**%7Bsummary%5B%22no_rag_pass_count%22%5D%7D%20%E2%86%92%20%7Bsummary%5B%22rag_pass_count%22%5D%7D**%20%26nbsp%3B%20%C2%B7%20%26nbsp%3B%0A%20%20%20%20%20%20%20%20RAG%20improved%20**%7Bsummary%5B%22improved%22%5D%7D**%20%2F%20declined%20**%7Bsummary%5B%22declined%22%5D%7D**%20%2F%20unchanged%20**%7Bsummary%5B%22unchanged%22%5D%7D**%0A%0A%20%20%20%20%20%20%20%20%3Csub%3EJudge%3A%20%7Bmeta%5B%22evaluator_version%22%5D%7D%20%C2%B7%20sources%3A%20%7Bmeta%5B%22sources%22%5D%5B%22no_rag_scores%22%5D%7D%20vs%20%7Bmeta%5B%22sources%22%5D%5B%22rag_scores%22%5D%7D%3C%2Fsub%3E%0A%20%20%20%20%20%20%20%20%22%22%22%0A%20%20%20%20)%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(failure_types%2C%20mo%2C%20pairs)%3A%0A%20%20%20%20def%20_options(field)%3A%0A%20%20%20%20%20%20%20%20values%20%3D%20%7Bstr(row.get(field%2C%20%22%22))%20for%20row%20in%20pairs%20if%20str(row.get(field%2C%20%22%22)).strip()%7D%0A%20%20%20%20%20%20%20%20return%20%5B%22All%22%5D%20%2B%20sorted(values)%0A%0A%20%20%20%20model_filter%20%3D%20mo.ui.dropdown(_options(%22model%22)%2C%20value%3D%22All%22%2C%20label%3D%22Model%22)%0A%20%20%20%20source_filter%20%3D%20mo.ui.dropdown(_options(%22source_model%22)%2C%20value%3D%22All%22%2C%20label%3D%22Question%20source%22)%0A%20%20%20%20category_filter%20%3D%20mo.ui.dropdown(_options(%22category%22)%2C%20value%3D%22All%22%2C%20label%3D%22Category%22)%0A%20%20%20%20difficulty_filter%20%3D%20mo.ui.dropdown(_options(%22difficulty%22)%2C%20value%3D%22All%22%2C%20label%3D%22Difficulty%22)%0A%20%20%20%20contentiousness_filter%20%3D%20mo.ui.dropdown(_options(%22contentiousness%22)%2C%20value%3D%22All%22%2C%20label%3D%22Contentiousness%22)%0A%20%20%20%20version_filter%20%3D%20mo.ui.dropdown(_options(%22version_specificity%22)%2C%20value%3D%22All%22%2C%20label%3D%22Version%20specificity%22)%0A%0A%20%20%20%20swing_preset%20%3D%20mo.ui.dropdown(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20%22All%20swings%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22RAG%20improved%20(%CE%94%20%3E%200)%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22RAG%20declined%20(%CE%94%20%3C%200)%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Big%20swings%20(%7C%CE%94%7C%20%E2%89%A5%200.5)%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Custom%20range%20(use%20slider)%22%2C%0A%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20value%3D%22All%20swings%22%2C%0A%20%20%20%20%20%20%20%20label%3D%22Score%20swing%22%2C%0A%20%20%20%20)%0A%20%20%20%20swing_slider%20%3D%20mo.ui.range_slider(%0A%20%20%20%20%20%20%20%20start%3D-1.0%2C%0A%20%20%20%20%20%20%20%20stop%3D1.0%2C%0A%20%20%20%20%20%20%20%20step%3D0.05%2C%0A%20%20%20%20%20%20%20%20value%3D%5B-1.0%2C%201.0%5D%2C%0A%20%20%20%20%20%20%20%20label%3D%22Custom%20%CE%94%20range%22%2C%0A%20%20%20%20%20%20%20%20show_value%3DTrue%2C%0A%20%20%20%20)%0A%0A%20%20%20%20failure_type_filter%20%3D%20mo.ui.dropdown(%5B%22All%22%5D%20%2B%20list(failure_types)%2C%20value%3D%22All%22%2C%20label%3D%22Error%20category%22)%0A%20%20%20%20failure_where_filter%20%3D%20mo.ui.dropdown(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Any%20side%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Present%20in%20no-RAG%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Present%20in%20RAG%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22New%20in%20RAG%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Resolved%20by%20RAG%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22Changed%20either%20way%22%2C%0A%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20value%3D%22Any%20side%22%2C%0A%20%20%20%20%20%20%20%20label%3D%22Error%20applies%20to%22%2C%0A%20%20%20%20)%0A%20%20%20%20question_filter%20%3D%20mo.ui.text(value%3D%22%22%2C%20label%3D%22Question%20text%20%2F%20ID%20contains%22%2C%20full_width%3DTrue)%0A%0A%20%20%20%20mo.vstack(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.hstack(%5Bmodel_filter%2C%20source_filter%2C%20category_filter%5D%2C%20justify%3D%22start%22%2C%20gap%3D1)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.hstack(%5Bdifficulty_filter%2C%20contentiousness_filter%2C%20version_filter%5D%2C%20justify%3D%22start%22%2C%20gap%3D1)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.hstack(%5Bswing_preset%2C%20swing_slider%5D%2C%20justify%3D%22start%22%2C%20gap%3D1)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.hstack(%5Bfailure_type_filter%2C%20failure_where_filter%5D%2C%20justify%3D%22start%22%2C%20gap%3D1)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20question_filter%2C%0A%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20gap%3D0.75%2C%0A%20%20%20%20)%0A%20%20%20%20return%20(%0A%20%20%20%20%20%20%20%20category_filter%2C%0A%20%20%20%20%20%20%20%20contentiousness_filter%2C%0A%20%20%20%20%20%20%20%20difficulty_filter%2C%0A%20%20%20%20%20%20%20%20failure_type_filter%2C%0A%20%20%20%20%20%20%20%20failure_where_filter%2C%0A%20%20%20%20%20%20%20%20model_filter%2C%0A%20%20%20%20%20%20%20%20question_filter%2C%0A%20%20%20%20%20%20%20%20source_filter%2C%0A%20%20%20%20%20%20%20%20swing_preset%2C%0A%20%20%20%20%20%20%20%20swing_slider%2C%0A%20%20%20%20%20%20%20%20version_filter%2C%0A%20%20%20%20)%0A%0A%0A%40app.cell%0Adef%20_(%0A%20%20%20%20category_filter%2C%0A%20%20%20%20contentiousness_filter%2C%0A%20%20%20%20difficulty_filter%2C%0A%20%20%20%20failure_type_filter%2C%0A%20%20%20%20failure_where_filter%2C%0A%20%20%20%20model_filter%2C%0A%20%20%20%20pairs%2C%0A%20%20%20%20question_filter%2C%0A%20%20%20%20source_filter%2C%0A%20%20%20%20swing_preset%2C%0A%20%20%20%20swing_slider%2C%0A%20%20%20%20version_filter%2C%0A)%3A%0A%20%20%20%20def%20_categorical_match(row)%3A%0A%20%20%20%20%20%20%20%20for%20field%2C%20control%20in%20(%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22model%22%2C%20model_filter)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22source_model%22%2C%20source_filter)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22category%22%2C%20category_filter)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22difficulty%22%2C%20difficulty_filter)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22contentiousness%22%2C%20contentiousness_filter)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20(%22version_specificity%22%2C%20version_filter)%2C%0A%20%20%20%20%20%20%20%20)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20control.value%20!%3D%20%22All%22%20and%20str(row.get(field%2C%20%22%22))%20!%3D%20control.value%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20return%20False%0A%20%20%20%20%20%20%20%20return%20True%0A%0A%20%20%20%20def%20_swing_match(row)%3A%0A%20%20%20%20%20%20%20%20delta%20%3D%20row%5B%22score_delta%22%5D%0A%20%20%20%20%20%20%20%20preset%20%3D%20swing_preset.value%0A%20%20%20%20%20%20%20%20if%20preset%20%3D%3D%20%22RAG%20improved%20(%CE%94%20%3E%200)%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20delta%20%3E%200%0A%20%20%20%20%20%20%20%20if%20preset%20%3D%3D%20%22RAG%20declined%20(%CE%94%20%3C%200)%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20delta%20%3C%200%0A%20%20%20%20%20%20%20%20if%20preset%20%3D%3D%20%22Big%20swings%20(%7C%CE%94%7C%20%E2%89%A5%200.5)%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20abs(delta)%20%3E%3D%200.5%0A%20%20%20%20%20%20%20%20if%20preset%20%3D%3D%20%22Custom%20range%20(use%20slider)%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20low%2C%20high%20%3D%20swing_slider.value%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20low%20%3C%3D%20delta%20%3C%3D%20high%0A%20%20%20%20%20%20%20%20return%20True%0A%0A%20%20%20%20def%20_failure_match(row)%3A%0A%20%20%20%20%20%20%20%20failure_type%20%3D%20failure_type_filter.value%0A%20%20%20%20%20%20%20%20if%20failure_type%20%3D%3D%20%22All%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20True%0A%20%20%20%20%20%20%20%20no_rag_active%20%3D%20set(row%5B%22resolved_failure_types%22%5D)%20%7C%20set(row%5B%22shared_failure_types%22%5D)%0A%20%20%20%20%20%20%20%20rag_active%20%3D%20set(row%5B%22new_failure_types%22%5D)%20%7C%20set(row%5B%22shared_failure_types%22%5D)%0A%20%20%20%20%20%20%20%20where%20%3D%20failure_where_filter.value%0A%20%20%20%20%20%20%20%20if%20where%20%3D%3D%20%22Present%20in%20no-RAG%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20failure_type%20in%20no_rag_active%0A%20%20%20%20%20%20%20%20if%20where%20%3D%3D%20%22Present%20in%20RAG%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20failure_type%20in%20rag_active%0A%20%20%20%20%20%20%20%20if%20where%20%3D%3D%20%22New%20in%20RAG%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20failure_type%20in%20row%5B%22new_failure_types%22%5D%0A%20%20%20%20%20%20%20%20if%20where%20%3D%3D%20%22Resolved%20by%20RAG%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20failure_type%20in%20row%5B%22resolved_failure_types%22%5D%0A%20%20%20%20%20%20%20%20if%20where%20%3D%3D%20%22Changed%20either%20way%22%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20failure_type%20in%20row%5B%22changed_failure_types%22%5D%0A%20%20%20%20%20%20%20%20return%20failure_type%20in%20(no_rag_active%20%7C%20rag_active)%0A%0A%20%20%20%20def%20_text_match(row)%3A%0A%20%20%20%20%20%20%20%20needle%20%3D%20question_filter.value.strip().lower()%0A%20%20%20%20%20%20%20%20if%20not%20needle%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20True%0A%20%20%20%20%20%20%20%20return%20needle%20in%20row%5B%22question_id%22%5D.lower()%20or%20needle%20in%20row%5B%22question%22%5D.lower()%0A%0A%20%20%20%20filtered%20%3D%20%5B%0A%20%20%20%20%20%20%20%20row%0A%20%20%20%20%20%20%20%20for%20row%20in%20pairs%0A%20%20%20%20%20%20%20%20if%20_categorical_match(row)%20and%20_swing_match(row)%20and%20_failure_match(row)%20and%20_text_match(row)%0A%20%20%20%20%5D%0A%20%20%20%20filtered%20%3D%20sorted(filtered%2C%20key%3Dlambda%20row%3A%20row%5B%22abs_score_delta%22%5D%2C%20reverse%3DTrue)%0A%20%20%20%20return%20(filtered%2C)%0A%0A%0A%40app.cell%0Adef%20_(filtered%2C%20mo%2C%20pd)%3A%0A%20%20%20%20browse_df%20%3D%20pd.DataFrame(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22question_id%22%3A%20row%5B%22question_id%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22model%22%3A%20row%5B%22model%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22source%22%3A%20row.get(%22source_model%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22category%22%3A%20row%5B%22category%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22difficulty%22%3A%20row%5B%22difficulty%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22no_rag%22%3A%20round(row%5B%22no_rag_score%22%5D%2C%202)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22rag%22%3A%20round(row%5B%22rag_score%22%5D%2C%202)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22%CE%94%22%3A%20round(row%5B%22score_delta%22%5D%2C%202)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22transition%22%3A%20row%5B%22pass_transition%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22rag_errors%22%3A%20row%5B%22rag_failure_count%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22top_source_file%22%3A%20row%5B%22top_source_file%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20for%20row%20in%20filtered%0A%20%20%20%20%20%20%20%20%5D%0A%20%20%20%20)%0A%0A%20%20%20%20if%20browse_df.empty%3A%0A%20%20%20%20%20%20%20%20browse_table%20%3D%20mo.ui.table(browse_df%2C%20selection%3DNone%2C%20label%3D%22No%20matching%20pairs%22)%0A%20%20%20%20%20%20%20%20_view%20%3D%20mo.md(%22**No%20pairs%20match%20the%20current%20filters.**%20Loosen%20a%20filter%20above.%22)%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20browse_table%20%3D%20mo.ui.table(%0A%20%20%20%20%20%20%20%20%20%20%20%20browse_df%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20selection%3D%22single%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20page_size%3D20%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20label%3Df%22%7Blen(filtered)%7D%20matched%20pairs%20%E2%80%94%20sorted%20by%20%7C%CE%94%7C%20desc%3B%20click%20a%20row%20to%20inspect%22%2C%0A%20%20%20%20%20%20%20%20)%0A%20%20%20%20%20%20%20%20_view%20%3D%20browse_table%0A%0A%20%20%20%20_view%0A%20%20%20%20return%20(browse_table%2C)%0A%0A%0A%40app.cell%0Adef%20_(browse_table%2C%20filtered%2C%20pairs_by_key)%3A%0A%20%20%20%20_selection%20%3D%20browse_table.value%0A%20%20%20%20selected_pair%20%3D%20None%0A%20%20%20%20try%3A%0A%20%20%20%20%20%20%20%20if%20_selection%20is%20not%20None%20and%20len(_selection)%20%3E%200%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_row%20%3D%20_selection.iloc%5B0%5D%20if%20hasattr(_selection%2C%20%22iloc%22)%20else%20_selection%5B0%5D%0A%20%20%20%20%20%20%20%20%20%20%20%20selected_pair%20%3D%20pairs_by_key.get((_row%5B%22question_id%22%5D%2C%20_row%5B%22model%22%5D))%0A%20%20%20%20except%20(KeyError%2C%20IndexError%2C%20TypeError)%3A%0A%20%20%20%20%20%20%20%20selected_pair%20%3D%20None%0A%20%20%20%20%23%20Fall%20back%20to%20the%20top%20filtered%20pair%20so%20the%20detail%20panel%20is%20never%20empty.%0A%20%20%20%20if%20selected_pair%20is%20None%20and%20filtered%3A%0A%20%20%20%20%20%20%20%20selected_pair%20%3D%20filtered%5B0%5D%0A%20%20%20%20return%20(selected_pair%2C)%0A%0A%0A%40app.cell%0Adef%20_(mo%2C%20selected_pair)%3A%0A%20%20%20%20if%20selected_pair%20is%20None%3A%0A%20%20%20%20%20%20%20%20_detail_header%20%3D%20mo.md(%22Select%20a%20pair%20above%20to%20read%20the%20answers%20and%20judgements.%22)%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20_p%20%3D%20selected_pair%0A%20%20%20%20%20%20%20%20_detail_header%20%3D%20mo.md(%0A%20%20%20%20%20%20%20%20%20%20%20%20f%22%22%22%0A%20%20%20%20%20%20%20%20%20%20%20%20%23%23%20%7B_p%5B%22question_id%22%5D%7D%20%26nbsp%3B%C2%B7%26nbsp%3B%20%60%7B_p%5B%22model%22%5D%7D%60%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%7C%20%7C%20no-RAG%20%7C%20RAG%20%7C%0A%20%20%20%20%20%20%20%20%20%20%20%20%7C%20---%20%7C%20---%20%7C%20---%20%7C%0A%20%20%20%20%20%20%20%20%20%20%20%20%7C%20**Score**%20%7C%20%7B_p%5B%22no_rag_score%22%5D%3A.2f%7D%20%7C%20%7B_p%5B%22rag_score%22%5D%3A.2f%7D%20(%CE%94%20%7B_p%5B%22score_delta%22%5D%3A%2B.2f%7D)%20%7C%0A%20%20%20%20%20%20%20%20%20%20%20%20%7C%20**Pass**%20%7C%20%7B%22%E2%9C%85%22%20if%20_p%5B%22no_rag_passed%22%5D%20else%20%22%E2%9D%8C%22%7D%20%7C%20%7B%22%E2%9C%85%22%20if%20_p%5B%22rag_passed%22%5D%20else%20%22%E2%9D%8C%22%7D%20%7C%0A%20%20%20%20%20%20%20%20%20%20%20%20%7C%20**Judged%20errors**%20%7C%20%7B_p%5B%22no_rag_failure_count%22%5D%7D%20%7C%20%7B_p%5B%22rag_failure_count%22%5D%7D%20%7C%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20**Source%3A**%20%7B_p.get(%22source_model%22%2C%20%22%22)%7D%20%26nbsp%3B%C2%B7%26nbsp%3B%20**Category%3A**%20%7B_p%5B%22category%22%5D%7D%20%26nbsp%3B%C2%B7%26nbsp%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20**Difficulty%3A**%20%7B_p%5B%22difficulty%22%5D%7D%20%26nbsp%3B%C2%B7%26nbsp%3B%20**Answer%20status%3A**%20%7B_p%5B%22answer_status%22%5D%7D%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%23%23%23%20Question%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%7B_p%5B%22question%22%5D%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%22%22%22%0A%20%20%20%20%20%20%20%20)%0A%20%20%20%20_detail_header%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(mo%2C%20selected_pair)%3A%0A%20%20%20%20_no_rag_answer%20%3D%20selected_pair.get(%22no_rag_answer%22%2C%20%22%22)%20if%20selected_pair%20else%20%22%22%0A%20%20%20%20_rag_answer%20%3D%20selected_pair.get(%22rag_answer%22%2C%20%22%22)%20if%20selected_pair%20else%20%22%22%0A%20%20%20%20mo.hstack(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(value%3D_no_rag_answer%2C%20rows%3D20%2C%20label%3D%22No-RAG%20answer%22%2C%20disabled%3DTrue%2C%20full_width%3DTrue)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(value%3D_rag_answer%2C%20rows%3D20%2C%20label%3D%22RAG%20answer%22%2C%20disabled%3DTrue%2C%20full_width%3DTrue)%2C%0A%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20widths%3D%22equal%22%2C%0A%20%20%20%20%20%20%20%20gap%3D1%2C%0A%20%20%20%20)%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(mo%2C%20selected_pair)%3A%0A%20%20%20%20_no_rag_rationale%20%3D%20selected_pair.get(%22no_rag_rationale%22%2C%20%22%22)%20if%20selected_pair%20else%20%22%22%0A%20%20%20%20_rag_rationale%20%3D%20selected_pair.get(%22rag_rationale%22%2C%20%22%22)%20if%20selected_pair%20else%20%22%22%0A%20%20%20%20mo.hstack(%0A%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(value%3D_no_rag_rationale%2C%20rows%3D8%2C%20label%3D%22No-RAG%20judge%20rationale%22%2C%20disabled%3DTrue%2C%20full_width%3DTrue)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(value%3D_rag_rationale%2C%20rows%3D8%2C%20label%3D%22RAG%20judge%20rationale%22%2C%20disabled%3DTrue%2C%20full_width%3DTrue)%2C%0A%20%20%20%20%20%20%20%20%5D%2C%0A%20%20%20%20%20%20%20%20widths%3D%22equal%22%2C%0A%20%20%20%20%20%20%20%20gap%3D1%2C%0A%20%20%20%20)%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(failure_types%2C%20mo%2C%20pd%2C%20selected_pair)%3A%0A%20%20%20%20if%20selected_pair%20is%20None%3A%0A%20%20%20%20%20%20%20%20_failure_view%20%3D%20mo.md(%22%22)%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20_no_rag_active%20%3D%20set(selected_pair%5B%22resolved_failure_types%22%5D)%20%7C%20set(selected_pair%5B%22shared_failure_types%22%5D)%0A%20%20%20%20%20%20%20%20_rag_active%20%3D%20set(selected_pair%5B%22new_failure_types%22%5D)%20%7C%20set(selected_pair%5B%22shared_failure_types%22%5D)%0A%20%20%20%20%20%20%20%20_no_rag_notes%20%3D%20selected_pair.get(%22no_rag_failure_notes%22%2C%20%7B%7D)%0A%20%20%20%20%20%20%20%20_rag_notes%20%3D%20selected_pair.get(%22rag_failure_notes%22%2C%20%7B%7D)%0A%20%20%20%20%20%20%20%20_rows%20%3D%20%5B%5D%0A%20%20%20%20%20%20%20%20for%20_failure_type%20in%20failure_types%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_in_no_rag%20%3D%20_failure_type%20in%20_no_rag_active%0A%20%20%20%20%20%20%20%20%20%20%20%20_in_rag%20%3D%20_failure_type%20in%20_rag_active%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20not%20(_in_no_rag%20or%20_in_rag)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20continue%0A%20%20%20%20%20%20%20%20%20%20%20%20_rows.append(%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22error%20category%22%3A%20_failure_type%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22no-RAG%22%3A%20%22%E2%80%A2%22%20if%20_in_no_rag%20else%20%22%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22RAG%22%3A%20%22%E2%80%A2%22%20if%20_in_rag%20else%20%22%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22change%22%3A%20%22resolved%20by%20RAG%22%20if%20(_in_no_rag%20and%20not%20_in_rag)%20else%20(%22new%20in%20RAG%22%20if%20(_in_rag%20and%20not%20_in_no_rag)%20else%20%22both%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22no-RAG%20note%22%3A%20_no_rag_notes.get(_failure_type%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22RAG%20note%22%3A%20_rag_notes.get(_failure_type%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20)%0A%20%20%20%20%20%20%20%20if%20_rows%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_failure_view%20%3D%20mo.vstack(%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%5Bmo.md(%22%23%23%23%20Judged%20error%20categories%22)%2C%20mo.ui.table(pd.DataFrame(_rows)%2C%20selection%3DNone%2C%20page_size%3D10)%5D%0A%20%20%20%20%20%20%20%20%20%20%20%20)%0A%20%20%20%20%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_failure_view%20%3D%20mo.md(%22%23%23%23%20Judged%20error%20categories%5Cn%5CnNeither%20answer%20was%20flagged%20with%20any%20error%20category.%22)%0A%20%20%20%20_failure_view%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(chunks%2C%20mo%2C%20pd%2C%20selected_pair)%3A%0A%20%20%20%20if%20selected_pair%20is%20None%3A%0A%20%20%20%20%20%20%20%20_context_view%20%3D%20mo.md(%22%22)%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20_rows%20%3D%20%5B%5D%0A%20%20%20%20%20%20%20%20for%20_ref%20in%20selected_pair.get(%22retrieved_context%22%2C%20%5B%5D)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_chunk%20%3D%20chunks.get(_ref%5B%22chunk_id%22%5D%2C%20%7B%7D)%0A%20%20%20%20%20%20%20%20%20%20%20%20_chunk_meta%20%3D%20_chunk.get(%22metadata%22%2C%20%7B%7D)%0A%20%20%20%20%20%20%20%20%20%20%20%20_rows.append(%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22rank%22%3A%20_ref.get(%22rank%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22distance%22%3A%20_ref.get(%22distance%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22source_file%22%3A%20_chunk_meta.get(%22source_file%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22name%22%3A%20_chunk_meta.get(%22name%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22entity_type%22%3A%20_chunk_meta.get(%22entity_type%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22h1%22%3A%20_chunk_meta.get(%22h1%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22h2%22%3A%20_chunk_meta.get(%22h2%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%22chunk_id%22%3A%20_ref%5B%22chunk_id%22%5D%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20)%0A%20%20%20%20%20%20%20%20_heading%20%3D%20mo.md(%0A%20%20%20%20%20%20%20%20%20%20%20%20%22%23%23%23%20RAG%20retrieved%20context%5Cn%5CnThe%20SRD%20chunks%20fed%20to%20the%20model%20for%20its%20RAG%20answer%2C%20%22%0A%20%20%20%20%20%20%20%20%20%20%20%20%22ordered%20by%20retrieval%20rank%20(lower%20distance%20%3D%20closer%20vector%20match).%22%0A%20%20%20%20%20%20%20%20)%0A%20%20%20%20%20%20%20%20if%20_rows%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_context_view%20%3D%20mo.vstack(%5B_heading%2C%20mo.ui.table(pd.DataFrame(_rows)%2C%20selection%3DNone%2C%20page_size%3D10)%5D)%0A%20%20%20%20%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20_context_view%20%3D%20mo.vstack(%5B_heading%2C%20mo.md(%22_No%20retrieved%20context%20recorded%20for%20this%20answer._%22)%5D)%0A%20%20%20%20_context_view%0A%20%20%20%20return%0A%0A%0A%40app.cell%0Adef%20_(chunks%2C%20mo%2C%20selected_pair)%3A%0A%20%20%20%20_refs%20%3D%20selected_pair.get(%22retrieved_context%22%2C%20%5B%5D)%20if%20selected_pair%20else%20%5B%5D%0A%20%20%20%20_options%20%3D%20%5B%0A%20%20%20%20%20%20%20%20f%22%7B_ref.get('rank')%7D%3A%20%7Bchunks.get(_ref%5B'chunk_id'%5D%2C%20%7B%7D).get('metadata'%2C%20%7B%7D).get('name'%2C%20_ref%5B'chunk_id'%5D)%7D%22%0A%20%20%20%20%20%20%20%20f%22%20(distance%20%7B_ref.get('distance')%7D)%22%0A%20%20%20%20%20%20%20%20for%20_ref%20in%20_refs%0A%20%20%20%20%5D%0A%20%20%20%20chunk_picker%20%3D%20mo.ui.dropdown(%0A%20%20%20%20%20%20%20%20_options%20or%20%5B%22No%20retrieved%20context%22%5D%2C%0A%20%20%20%20%20%20%20%20value%3D(_options%5B0%5D%20if%20_options%20else%20%22No%20retrieved%20context%22)%2C%0A%20%20%20%20%20%20%20%20label%3D%22Inspect%20a%20retrieved%20chunk%22%2C%0A%20%20%20%20%20%20%20%20full_width%3DTrue%2C%0A%20%20%20%20)%0A%20%20%20%20chunk_picker%0A%20%20%20%20return%20(chunk_picker%2C)%0A%0A%0A%40app.cell%0Adef%20_(chunk_picker%2C%20chunks%2C%20json%2C%20mo%2C%20selected_pair)%3A%0A%20%20%20%20_refs%20%3D%20selected_pair.get(%22retrieved_context%22%2C%20%5B%5D)%20if%20selected_pair%20else%20%5B%5D%0A%20%20%20%20_options%20%3D%20%5B%0A%20%20%20%20%20%20%20%20f%22%7B_ref.get('rank')%7D%3A%20%7Bchunks.get(_ref%5B'chunk_id'%5D%2C%20%7B%7D).get('metadata'%2C%20%7B%7D).get('name'%2C%20_ref%5B'chunk_id'%5D)%7D%22%0A%20%20%20%20%20%20%20%20f%22%20(distance%20%7B_ref.get('distance')%7D)%22%0A%20%20%20%20%20%20%20%20for%20_ref%20in%20_refs%0A%20%20%20%20%5D%0A%20%20%20%20if%20_refs%20and%20chunk_picker.value%20in%20_options%3A%0A%20%20%20%20%20%20%20%20_ref%20%3D%20_refs%5B_options.index(chunk_picker.value)%5D%0A%20%20%20%20%20%20%20%20_chunk%20%3D%20chunks.get(_ref%5B%22chunk_id%22%5D%2C%20%7B%7D)%0A%20%20%20%20%20%20%20%20_chunk_view%20%3D%20mo.vstack(%0A%20%20%20%20%20%20%20%20%20%20%20%20%5B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20value%3D_chunk.get(%22text%22%2C%20%22%22)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20rows%3D14%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20label%3D%22Retrieved%20chunk%20text%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20disabled%3DTrue%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20full_width%3DTrue%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mo.ui.text_area(%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20value%3Djson.dumps(_chunk.get(%22metadata%22%2C%20%7B%7D)%2C%20ensure_ascii%3DFalse%2C%20indent%3D2%2C%20sort_keys%3DTrue)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20rows%3D8%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20label%3D%22Chunk%20metadata%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20disabled%3DTrue%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20full_width%3DTrue%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20)%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%5D%0A%20%20%20%20%20%20%20%20)%0A%20%20%20%20else%3A%0A%20%20%20%20%20%20%20%20_chunk_view%20%3D%20mo.md(%22%22)%0A%20%20%20%20_chunk_view%0A%20%20%20%20return%0A%0A%0Aif%20__name__%20%3D%3D%20%22__main__%22%3A%0A%20%20%20%20app.run()%0A</marimo-code></head>
+  </head>
   <body>
-    <div id="root"></div>
-    <!-- This is a portal for the data editor to render in -->
-    <div id="portal" data-testid="glide-portal" style="position: fixed; left: 0; top: 0; z-index: 9999"></div>
-    <script data-marimo="true">
-      Object.defineProperty(window, "__MARIMO_MOUNT_CONFIG__", {
-        value: Object.freeze({
-            "filename": "notebook.py",
-            "cwd": "",
-            "lspWorkspace": null,
-            "mode": "read",
-            "version": "0.23.8",
-            "serverToken": "unused",
-            "config": {"ai": {"custom_providers": {}, "models": {"custom_models": [], "displayed_models": []}}, "completion": {"activate_on_typing": true, "copilot": false, "signature_hint_on_typing": false}, "diagnostics": {"sql_linter": true}, "display": {"cell_output": "below", "code_editor_font_size": 14, "dataframes": "rich", "default_table_max_columns": 50, "default_table_page_size": 10, "default_width": "medium", "reference_highlighting": true, "theme": "light"}, "formatting": {"line_length": 79}, "keymap": {"overrides": {}, "preset": "default"}, "language_servers": {"pylsp": {"enable_flake8": false, "enable_mypy": true, "enable_pydocstyle": false, "enable_pyflakes": false, "enable_pylint": false, "enable_ruff": true, "enabled": false}}, "mcp": {"mcpServers": {}, "presets": []}, "package_management": {"manager": "pip"}, "runtime": {"auto_instantiate": false, "auto_reload": "off", "default_csv_encoding": "utf-8", "default_sql_output": "auto", "on_cell_change": "autorun", "output_max_bytes": 8000000, "reactive_tests": true, "show_tracebacks": false, "std_stream_max_bytes": 1000000, "watcher_on_save": "lazy"}, "save": {"autosave": "off", "autosave_delay": 1000, "format_on_save": false}, "server": {"browser": "default", "follow_symlink": false}, "snippets": {"custom_paths": [], "include_default_snippets": true}},
-            "configOverrides": {},
-            "appConfig": {"sql_output": "auto", "width": "full"},
-            "view": {"showAppCode": false},
-            "notebook": null,
-            "session": null,
-            "runtimeConfig": null,
-        }),
-        writable: false,
-        configurable: false,
-      });
-    </script>
+    <main class="page">
+      <article class="paper">
+        <nav class="site-nav" aria-label="Site navigation">
+          <a href="./">SRD Rules Agent</a>
+          <span>
+            <a href="./rag-comparison/">Paired answer browser</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/TecKnow/SRD-rules-agent">Repository</a>
+          </span>
+        </nav>
+        <h1 id="retrieval-improves-srd-rules-qa-but-not-uniformly">Retrieval Improves SRD Rules QA, But Not Uniformly</h1>
+<p><strong>A benchmark study of retrieval-augmented generation for D&amp;D SRD 5.2.1 rules questions.</strong></p>
+<p><a href="./rag-comparison/">Open the paired answer browser</a> · <a href="./question-set/">Open the question-set browser</a> · <a href="../reports/rag-vs-no-rag-performance.md">Read the performance report</a></p>
+<h2 id="abstract">Abstract</h2>
+<p>This project evaluates whether retrieval-augmented generation (RAG) improves model answers to rules questions grounded in the <em>Dungeons &amp; Dragons System Reference Document 5.2.1</em>. Five models answered 180 benchmark questions twice: once without retrieval and once with retrieved SRD context. A custom OpenRouter-backed LLM judge then scored 900 matched <code>(question_id, model)</code> pairs against the same benchmark rows and rubric fields.</p>
+<p>Overall, RAG improved judged answer quality. Average score increased from <strong>0.457</strong> to <strong>0.633</strong>, and passing answers increased from <strong>282</strong> to <strong>487</strong>. At the same time, RAG did not uniformly improve every model or every question category; the paired browser is intended to make both gains and regressions inspectable.</p>
+<h2 id="key-findings">Key Findings</h2>
+<table>
+<thead>
+<tr>
+<th>Measure</th>
+<th style="text-align: right;">No RAG</th>
+<th style="text-align: right;">RAG</th>
+<th style="text-align: right;">Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matched answer pairs</td>
+<td style="text-align: right;">900</td>
+<td style="text-align: right;">900</td>
+<td style="text-align: right;">-</td>
+</tr>
+<tr>
+<td>Average judged score</td>
+<td style="text-align: right;">0.457</td>
+<td style="text-align: right;">0.633</td>
+<td style="text-align: right;">+0.176</td>
+</tr>
+<tr>
+<td>Passing answers</td>
+<td style="text-align: right;">282</td>
+<td style="text-align: right;">487</td>
+<td style="text-align: right;">+205</td>
+</tr>
+<tr>
+<td>Improved pairs</td>
+<td style="text-align: right;">-</td>
+<td style="text-align: right;">572</td>
+<td style="text-align: right;">-</td>
+</tr>
+<tr>
+<td>Declined pairs</td>
+<td style="text-align: right;">-</td>
+<td style="text-align: right;">234</td>
+<td style="text-align: right;">-</td>
+</tr>
+<tr>
+<td>Unchanged pairs</td>
+<td style="text-align: right;">-</td>
+<td style="text-align: right;">94</td>
+<td style="text-align: right;">-</td>
+</tr>
+</tbody>
+</table>
+<p>The largest model-level lift was observed for <code>ibm-granite/granite-4.1-8b</code>, while the smallest lift was observed for <code>qwen/qwen3.7-max</code>. RAG most reduced failures involving false source attribution, unsupported source claims, and edition drift.</p>
+<h2 id="interactive-artifact">Interactive Artifact</h2>
+<p>The primary public results artifact is the paired answer browser:</p>
+<p><strong><a href="./rag-comparison/">Open the RAG vs no-RAG answer browser</a></strong></p>
+<p>The browser lets readers filter by model, question source, category, difficulty, score swing, and judged error type. For each selected pair, it shows the no-RAG answer, the RAG answer, judge rationales, diagnostic flags, and retrieved context.</p>
+<p>The companion benchmark artifact is the question-set browser:</p>
+<p><strong><a href="./question-set/">Open the question-set browser</a></strong></p>
+<p>The question-set browser answers a different question: not "did retrieval help?", but "what exactly was asked, how was the expected answer grounded, and where was ambiguity preserved?" It is important context for interpreting the scores, because the judge compares model answers against these benchmark rows rather than against an informal impression of the rules.</p>
+<h2 id="results">Results</h2>
+<p><img alt="Average score delta by model" src="./figures/model-average-score-delta.png"></p>
+<p><em>Figure 1. Average judged score delta by model after adding retrieved SRD context.</em></p>
+<p><img alt="Score delta by model and difficulty" src="./figures/model-difficulty-score-delta-heatmap.png"></p>
+<p><em>Figure 2. Score delta by model and difficulty. Easy and medium questions show the strongest gains; hard questions are more mixed.</em></p>
+<p>RAG improved performance most clearly on easy and medium questions, with smaller and less uniform gains on hard questions. This pattern is consistent with retrieval resolving source-grounding and edition-confusion failures while not automatically solving questions that require multi-step reasoning, careful limiting phrases, or synthesis across rules.</p>
+<h2 id="error-analysis">Error Analysis</h2>
+<p><img alt="Failure type count delta" src="./figures/failure-type-count-delta.png"></p>
+<p><em>Figure 3. Change in judged failure-type counts. Negative values indicate fewer failures with RAG.</em></p>
+<p>The strongest reductions were in:</p>
+<ul>
+<li><code>false_source_attribution</code></li>
+<li><code>unsupported_source_claim</code></li>
+<li><code>edition_drift</code></li>
+<li><code>missed_limiting_phrase</code></li>
+</ul>
+<p>The most notable increase was <code>insufficient_or_vague_answer</code>, suggesting that retrieval sometimes made answers more cautious or less complete. This is one reason the site foregrounds paired inspection rather than only aggregate metrics.</p>
+<h2 id="benchmark-and-provenance">Benchmark And Provenance</h2>
+<p>The benchmark contains 180 SRD-focused questions. Rows preserve question text, expected answers, answer-status annotations, source/provenance fields, and failure-mode tags. These fields are part of the judging context: they define what counts as a correct, incomplete, unsupported, or overconfident answer for each question.</p>
+<p>The question-set browser is therefore not just a dataset convenience. It is the audit layer for the evaluation. It lets readers inspect:</p>
+<ul>
+<li>the exact question text and stable <code>question_id</code></li>
+<li>the expected answer and refined grading criteria</li>
+<li>whether the row is resolved or intentionally ambiguous</li>
+<li>common wrong answers and failure-mode tags</li>
+<li>source and provenance fields used to ground the row</li>
+</ul>
+<p>The benchmark intentionally preserves some ambiguity. In those cases, the goal is not to force a single table ruling, but to test whether a model can state the limits of what SRD 5.2.1 supports.</p>
+<p>The benchmark combines curated SRD-focused questions developed in this repository with prior public work on SRD question answering. In particular, it builds around the SRD 5.2.1 text and the <a href="https://huggingface.co/datasets/datapizza-ai-lab/dnd5e-srd-qa">Datapizza AI Lab D&amp;D 5.2.1 SRD RAG Evaluation Dataset</a>, extending the evaluation toward version-specific rules questions, ambiguous rulings, source-scope failures, and retrieval-sensitive failure modes.</p>
+<h2 id="methods">Methods</h2>
+<p>The comparison uses matched <code>(question_id, model)</code> pairs only. Each model answered each benchmark question in two conditions:</p>
+<ol>
+<li><strong>No RAG:</strong> the model answered from its own context and prompt instructions.</li>
+<li><strong>RAG:</strong> the model answered with retrieved SRD context from the Chroma-backed retrieval pipeline.</li>
+</ol>
+<p>Both answer sets were judged with the same OpenRouter-backed grading workflow and structured diagnostic taxonomy. Some internal filenames still contain <code>deepeval</code> from an earlier implementation direction, but the structured judging code used for these results calls the judge through the project's OpenRouter client. The static browser uses a prebuilt JSON dataset derived from the preserved run artifacts, so it can run entirely in a reader's browser.</p>
+<h2 id="related-projects-and-infrastructure">Related Projects And Infrastructure</h2>
+<p>This project depends on several public datasets, tools, and libraries:</p>
+<ul>
+<li><a href="https://www.dndbeyond.com/srd">D&amp;D System Reference Document 5.2.1</a>, the CC-BY-4.0 rules text used as the source of truth.</li>
+<li><a href="https://huggingface.co/datasets/datapizza-ai-lab/dnd5e-srd-qa">Datapizza AI Lab's D&amp;D 5.2.1 SRD RAG Evaluation Dataset</a>, which provided an important public SRD QA benchmark reference.</li>
+<li><a href="https://github.com/downfallx/dnd-5e-srd-markdown">downfallx/dnd-5e-srd-markdown</a>, used as a machine-readable SRD 5.2.1 markdown source.</li>
+<li><a href="https://marimo.io">marimo</a>, used for the question-set browser, analysis notebooks, and the exported WebAssembly answer browser.</li>
+<li><a href="https://openrouter.ai">OpenRouter</a>, used directly through this project's client code for answer generation, embeddings, and the structured LLM judge.</li>
+<li><a href="https://www.trychroma.com">Chroma</a>, used for local vector retrieval over SRD chunks.</li>
+<li><a href="https://python.langchain.com/docs/concepts/text_splitters/">LangChain text splitters</a>, used to split the markdown SRD into header-aware, token-bounded chunks before embedding.</li>
+<li><a href="https://pyodide.org">Pyodide</a>, which underlies the browser-executed Python environment used by marimo's WebAssembly export.</li>
+</ul>
+<h2 id="limitations">Limitations</h2>
+<p>This site reports judged answer quality, not ground-truth human adjudication of every answer. The LLM judge is useful for scalable comparison, but individual examples should be inspected before drawing strong conclusions about a model or retrieval setting.</p>
+<p>The retrieval distance shown in the browser is a retrieval diagnostic, not a correctness score. Low distance can indicate a close vector match, but correctness still depends on whether the retrieved passage is relevant, complete, and used well by the model.</p>
+<h2 id="reproducibility">Reproducibility</h2>
+<p>The published browser is built from preserved artifacts in the repository. To preview the site locally from the repository root, run:</p>
+<pre><code class="language-powershell">$env:UV_CACHE_DIR='.uv-cache'; uv run python -m http.server --directory docs 8000
+</code></pre>
+<p>Then open <code>http://127.0.0.1:8000/</code>.</p>
+<p>To rebuild the Markdown landing page after editing <code>docs/index.md</code>, run:</p>
+<pre><code class="language-powershell">$env:UV_CACHE_DIR='.uv-cache'; uv run python scripts\build_site.py
+</code></pre>
+<p>To rebuild the question-set browser export, use the workflow documented in <code>apps/question-set/README.md</code>. To rebuild the RAG comparison data and marimo export, use the workflow documented in <code>apps/rag-comparison/README.md</code>.</p>
+        <p class="footnote">
+          Static landing page generated from <code>docs/index.md</code>.
+          The paired answer browser is an exported marimo WebAssembly app.
+        </p>
+      </article>
+    </main>
   </body>
 </html>

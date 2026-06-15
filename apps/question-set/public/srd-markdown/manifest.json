@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "name": "animals.md"
+    },
+    {
+      "name": "character-creation.md"
+    },
+    {
+      "name": "character-origins.md"
+    },
+    {
+      "name": "classes.md"
+    },
+    {
+      "name": "equipment.md"
+    },
+    {
+      "name": "feats.md"
+    },
+    {
+      "name": "gameplay-toolbox.md"
+    },
+    {
+      "name": "magic-items.md"
+    },
+    {
+      "name": "monsters-A-Z.md"
+    },
+    {
+      "name": "monsters.md"
+    },
+    {
+      "name": "playing-the-game.md"
+    },
+    {
+      "name": "rules-glossary.md"
+    },
+    {
+      "name": "spells.md"
+    }
+  ]
+}
