@@ -84,6 +84,8 @@ def build_agent(config: AgentConfig | None = None) -> SrdAgent:
         config.retrieval.encoder,
         source_dir=config.source_dir,
         runs_dir=config.runs_dir,
+        chunk_size=config.retrieval.chunk_size,
+        chunk_overlap=config.retrieval.chunk_overlap,
     )
     retriever = Retriever.from_config(config.retrieval, collection)
     llm = build_chat_model(config.gen)

@@ -81,7 +81,8 @@ class OpenAIEncoder:
             headers=headers,
             timeout=self.timeout_seconds,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise RuntimeError(f"OpenAI-compatible embed HTTP {resp.status_code} from {base}/embeddings: {resp.text[:500]}")
         data = resp.json().get("data", [])
         ordered = sorted(data, key=lambda item: item.get("index", 0))
         embeddings = [item["embedding"] for item in ordered]

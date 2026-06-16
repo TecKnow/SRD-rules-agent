@@ -9,6 +9,7 @@ hold several indexes side by side and rebuilds happen only when inputs change.
 
 import hashlib
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -133,7 +134,15 @@ def prepare_index(
     print(f"Embedding {len(chunks)} chunks with {encoder_spec.id} -> {name}", flush=True)
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
-        vectors = enc.embed_documents([str(c["text"]) for c in batch])
+        for attempt in range(4):  # transient 4xx/5xx/timeouts under heavy embedding
+            try:
+                vectors = enc.embed_documents([str(c["text"]) for c in batch])
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    raise
+                print(f"  embed batch retry {attempt + 1}/3 after error: {exc}", flush=True)
+                time.sleep(2 * (attempt + 1))
         collection.upsert(  # upsert so a re-run after a partial build is safe
             ids=[str(c["id"]) for c in batch],
             documents=[str(c["text"]) for c in batch],

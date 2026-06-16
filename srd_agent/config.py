@@ -98,10 +98,15 @@ class RetrievalConfig:
     reranker: RerankerSpec = RerankerSpec()
     fetch_k: int = 30  # candidates pulled from Chroma before reranking
     top_k: int = 6  # passages handed to the LLM after reranking
+    chunk_size: int = 1200  # token budget per chunk (index-build param)
+    chunk_overlap: int = 100
 
     @property
     def id(self) -> str:
-        return f"enc[{self.encoder.id}]_rr[{self.reranker.id}]_fk{self.fetch_k}_tk{self.top_k}"
+        return (
+            f"enc[{self.encoder.id}]_rr[{self.reranker.id}]"
+            f"_cs{self.chunk_size}_co{self.chunk_overlap}_fk{self.fetch_k}_tk{self.top_k}"
+        )
 
 
 # --- Named building blocks the bake-off / CLI draw from --------------------

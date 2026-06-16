@@ -202,3 +202,48 @@ will move under a top-level `research/`, while shared infrastructure (`srd_rag` 
 references (`pyproject` scripts, `.gitignore` allowlist, `docs/index.md` links, build-script
 defaults), so it is **deferred until after agent v1** and after the in-flight `apps/question-set`
 work lands, to avoid tangling the two.
+
+### Retrieval tuning #1: chunking sweep (negative result)
+
+First tuning experiment on the local agent's retrieval. Built a bake-off
+(`srd_agent/bakeoff.py`, `--suite chunking --gather-only`) that, for each chunk
+configuration, re-embeds the SRD locally, gathers single-shot RAG answers over the
+180-question benchmark with local `qwen2.5:7b-instruct` (free, via Ollama), and writes
+judge-ready answer sets. Answers/scores live under the gitignored `runs/agent/bakeoff/`,
+so this log is the durable record.
+
+Method notes:
+- **One variable:** chunk size/overlap only, **no reranker** (so chunking quality is not
+  masked), single-shot generation (comparable to the published RAG report).
+- **Held the retrieved-context token budget ~constant** (~7.2k) by scaling `top_k` inversely
+  with chunk size (512→tk14, 800→tk9, 1200→tk6, 1600→tk5), so the sweep measures chunk
+  *granularity*, not how much text the model sees. Caveat: this co-varies `chunk_size` with
+  `top_k`, so the two can't be fully separated from this run.
+- **Judge:** `gpt-4.1-mini` via OpenRouter (not GPT-5.5 — a relative ranking of one local
+  answerer doesn't need a frontier judge, and the original baseline used different *answerer*
+  models anyway, so absolute comparability was already gone). ~$ small, vs ~$60 for 5.5.
+
+Results (avg judged score / pass rate, n=180, same judge):
+
+| chunk_size/overlap | avg | pass |
+| --- | --- | --- |
+| 512 / 64 (tk14) | 0.586 | 56% |
+| **1200 / 100 (tk6)** | **0.611** | **58%** |
+| 1600 / 160 (tk5) | 0.607 | 57% |
+
+(800/100 was not judged: with 512↔1600 flat, a point between 512 and 1200 adds nothing.)
+
+**Conclusion: chunk size is not a useful lever for this corpus/encoder/model.** Across a
+3.1× size range the aggregate spread is **0.025**, smaller than the per-row noise floor
+(mean |Δ| ≈ 0.20 between 512 and 1200; 46 vs 38 row-level wins — within chance). A tidy
+category story from the first 512-vs-1200 pair (small→rules-spread, big→single-passage) did
+**not** survive adding the 1600 point — the per-slice numbers zig-zag non-monotonically,
+i.e. noise. The only mild consistent thread: `gold-rag-wide` prefers ≥1200.
+
+Most telling: the dominant failure mode, `missed_limiting_phrase`, is ~83–88 in **every**
+config — it is **reasoning-bound, not retrieval-bound**, so no chunk geometry touches it.
+
+**Decisions:** lock `chunk-1200` as the default (marginal aggregate peak, best on
+medium/version-specific, the research-tuned baseline). Next lever is the **reranker** (cross-
+encoder, higher expected ROI, targets the hard/rules-spread precision cases) — `RERANK_SWEEP`
+candidates already wired in `bakeoff.py`, pending a TEI/Infinity sidecar.
