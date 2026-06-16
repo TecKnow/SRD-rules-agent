@@ -295,3 +295,41 @@ and reranking buys a small hard-question-specific gain that isn't worth always-o
 hardware. The dominant residual failure (`missed_limiting_phrase`) is reasoning-bound — the
 next real gains are in the *answerer* (a stronger/larger local model or better prompting), not
 in retrieval geometry.
+
+### Retrieval tuning #3: answerer model (7B → 14B) — the real lever
+
+Tested the hypothesis above by swapping only the generation model: same retrieval (chunk-1200,
+no rerank), same `gpt-4.1-mini` judge, 7B vs `qwen2.5:14b-instruct` (bake-off
+`--candidate qwen14b --gen-model qwen2.5:14b-instruct`). The 14B is ~9 GB in 4-bit GGUF (fits
+the 16 GB 4080 via Ollama, no bitsandbytes/transformers needed), ran ~2.5 s/answer, stable.
+
+Results (n=180, same judge):
+
+| model | avg | pass |
+| --- | --- | --- |
+| qwen2.5:7b (baseline) | 0.611 | 58% |
+| **qwen2.5:14b** | **0.671** | **64%** |
+
+**This is the first lever to clear the noise floor.** +0.060 avg at SE 0.028 is **~2.1σ
+(p≈0.04), statistically significant** — vs chunking (noise) and reranking (~1.2σ). It's >2× the
+reranker's gain from a single model swap (+12 passes, 58→64%; per-row 54 better / 32 worse).
+
+**The headline:** `missed_limiting_phrase` **88 → 71 (−17)** — the reasoning-bound failure that
+sat at ~83–88 across *every* chunking and reranking config finally moves. Confirms the ceiling
+was in the answerer, not retrieval. The 14B also broadly cut source/hallucination failures
+(`unsupported_source_claim` 19→11, `non_srd_2024_import` 12→4, `false_source_attribution` 5→2,
+`false_srd_exclusion` 3→0). Minor tradeoffs: slightly more `insufficient_or_vague` (+4) and
+`overconfident_ambiguous_ruling` (+6). Gains concentrate on hard (+0.080), expert (+0.107),
+rules-spread (+0.098), version-specific (+0.088), contentious (+0.093); the only regression is
+`easy` (−0.045, the 14B over-thinks simple questions).
+
+**Decision: `qwen2.5:14b-instruct` is the new default generation model** (`DEFAULT_GEN_MODEL` in
+`config.py`). Cost is the VRAM footprint (~9 GB leaves ~2 GB free on the 4080) — which leaves no
+room for a GPU reranker alongside it, reinforcing reranker = optional / CPU-only. Drop to 7B if
+VRAM is tight. (For reference, 0.671 edges past the published 5-cloud-model RAG average of 0.633,
+though under a cheaper judge so not a strict comparison.)
+
+**Campaign summary:** chunking — no effect; reranking — marginal, hard-only, not worth always-on;
+**answerer 7B→14B — the real, significant lever.** Remaining residual failures are still
+reasoning-shaped, so further gains point at a larger model (32B is the card's marginal ceiling) or
+prompt/answer-format work, not retrieval.

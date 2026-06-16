@@ -79,10 +79,17 @@ RERANK_SWEEP: dict[str, RetrievalConfig] = {
     "rr-bge-m3-fk60": RetrievalConfig(NOMIC_OPENAI, BGE_RERANK_ST, fetch_k=60, top_k=6),
 }
 
-CANDIDATES: dict[str, RetrievalConfig] = {**CHUNK_SWEEP, **RERANK_SWEEP}
+# Answerer sweep: fixed retrieval (chunk-1200, no rerank); vary the *generation* model via
+# --gen-model. The 7B baseline is the existing chunk-1200 run, so reuse its scores.
+ANSWERER_SWEEP: dict[str, RetrievalConfig] = {
+    "qwen14b": RetrievalConfig(NOMIC_OPENAI, NO_RERANK),
+}
+
+CANDIDATES: dict[str, RetrievalConfig] = {**CHUNK_SWEEP, **RERANK_SWEEP, **ANSWERER_SWEEP}
 SUITES: dict[str, list[str]] = {
     "chunking": list(CHUNK_SWEEP),
     "rerank": list(RERANK_SWEEP),
+    "answerer": list(ANSWERER_SWEEP),
 }
 
 

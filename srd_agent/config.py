@@ -31,7 +31,7 @@ SRD_VERSION = "5.2.1"
 # One service serves both chat and embeddings; no API key needed locally.
 DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:11434/v1"
 DEFAULT_OPENAI_API_KEY = "ollama"  # local servers ignore the value
-DEFAULT_GEN_MODEL = "qwen2.5:7b-instruct"
+DEFAULT_GEN_MODEL = "qwen2.5:14b-instruct"  # bake-off: +0.060 vs 7b, dents missed_limiting_phrase
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 
 # --- Optional reranker server (only if the bake-off picks one) -------------

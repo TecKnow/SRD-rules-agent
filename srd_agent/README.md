@@ -6,7 +6,7 @@ text via retrieval. It is the product layer on top of the research pipeline
 service, with all models running locally on the GPU.
 
 - **Generation:** an **OpenAI-compatible** backend (`ChatOpenAI`), defaulting to a local
-  **Ollama** `/v1` endpoint running `qwen2.5:7b-instruct`. Swap to LM Studio, vLLM, a shared
+  **Ollama** `/v1` endpoint running `qwen2.5:14b-instruct`. Swap to LM Studio, vLLM, a shared
   local server, or a hosted API by setting `OPENAI_BASE_URL` / `OPENAI_API_KEY` — no code change.
 - **One service by default:** the same local endpoint serves both chat and the `nomic-embed-text`
   encoder, so a basic setup is just **Ollama + this app**. The reranker is **optional and off by
@@ -38,12 +38,14 @@ no-reranker setup needs neither.
 ```powershell
 # Ollama serves both the generation LLM and the nomic encoder over one OpenAI-compatible API.
 ollama serve                  # or run it as a background service
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
 ollama pull nomic-embed-text
 ```
 
-> VRAM: Qwen-7B adds ~5 GB on top of desktop GPU usage. Close GPU-heavy GUI apps
-> (browsers, Electron apps, games) if the 4080 is tight.
+> VRAM: Qwen-14B adds ~9 GB on top of desktop GPU usage — on a 16 GB card that leaves
+> little headroom, so close GPU-heavy GUI apps (browsers, Electron, games), and note there
+> is no room left for a GPU reranker alongside it (run any reranker on CPU). Drop to
+> `qwen2.5:7b-instruct` (~5 GB) if VRAM is tight.
 
 ## 2. Build the local index
 
@@ -94,7 +96,7 @@ streams token deltas then a final `done` event.
 | --- | --- | --- |
 | `OPENAI_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI-compatible endpoint (chat + embeddings) |
 | `OPENAI_API_KEY` | `ollama` | ignored by local servers; set for a hosted API |
-| `SRD_AGENT_GEN_MODEL` | `qwen2.5:7b-instruct` | generation model id |
+| `SRD_AGENT_GEN_MODEL` | `qwen2.5:14b-instruct` | generation model id |
 | `SRD_AGENT_GEN_BACKEND` | `openai` | `openai` (any /v1) or `ollama` (native) |
 | `SRD_AGENT_EMBED_BASE_URL` | _(= `OPENAI_BASE_URL`)_ | embeddings endpoint if different from chat |
 | `SRD_AGENT_RERANK_MODEL` | _(unset → no reranker)_ | TEI reranker model id |
