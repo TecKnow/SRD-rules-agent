@@ -247,3 +247,51 @@ config — it is **reasoning-bound, not retrieval-bound**, so no chunk geometry 
 medium/version-specific, the research-tuned baseline). Next lever is the **reranker** (cross-
 encoder, higher expected ROI, targets the hard/rules-spread precision cases) — `RERANK_SWEEP`
 candidates already wired in `bakeoff.py`, pending a TEI/Infinity sidecar.
+
+### Retrieval tuning #2: reranker sweep (modest, not worth always-on)
+
+Added a cross-encoder rerank stage on the locked chunk-1200 + nomic index: retrieve a wide
+net (`fetch_k`) and rerank down to `top_k=6`. Used an **in-process sentence-transformers
+cross-encoder** rather than a TEI/Infinity sidecar (fewer services). torch is now a tracked
+dependency (`pyproject` `reranker` extra, sourced from the PyTorch **cu130** index so it's the
+GPU build); device is chosen by `SRD_AGENT_TORCH_DEVICE` (auto → GPU if present, or `cpu`).
+
+**Hardware lesson (important for deployment):** on the 16 GB RTX 4080, the GPU reranker
+**cannot reliably coexist with Ollama's resident qwen** (~5 GB) plus the desktop baseline —
+it repeatedly drove VRAM to ~0 free and tipped into WDDM shared-memory paging (the
+"silently ~1000× slower" trap): the run went from ~4 s/answer to stalled. CPU reranking is
+safe but slow (~25 s/answer for `bge-reranker-v2-m3` over 30 candidates). So a GPU-rerank-
+always-on agent is not viable on this card.
+
+Results (avg judged score / pass rate, n=180, same `gpt-4.1-mini` judge as the chunking sweep):
+
+| config | avg | pass |
+| --- | --- | --- |
+| chunk-1200 (no rerank, baseline) | 0.611 | 58% |
+| `bge-reranker-base`, fetch_k=30 | 0.602 | 58% |
+| **`bge-reranker-v2-m3`, fetch_k=30** | **0.636** | **62%** |
+| `bge-reranker-v2-m3`, fetch_k=60 | 0.639 | 61% |
+
+**Findings:**
+- The **small** reranker (`bge-base`) does nothing (−0.009, noise).
+- The **strong** reranker (`bge-reranker-v2-m3`) gives a **modest but real** gain: **+0.026**
+  avg, +8 passes (58→62%), improving **monotonically with reranker strength** on exactly the
+  slices chunking couldn't help — `hard` (0.487→0.538) and `rules-spread` (0.552→0.618). That
+  ordered trend + on-target slices is more credible than chunking's zig-zag, though the
+  aggregate +0.026 is only ~1.2 SE (not individually significant). It also cut
+  `insufficient_or_vague_answer` (14→9); `missed_limiting_phrase` stayed flat (reasoning-bound).
+- **Widening the net (fetch_k 30→60) does not amplify the gain** — flat aggregate
+  (0.636→0.639) and it *redistributes* quality: better on `hard` (0.538→0.567) but worse on
+  `easy` (0.877→0.764) and `common` (0.876→0.771). `fetch_k=30` is the better-balanced point.
+
+**Decisions:** the reranker lever is tapped out at ~+0.025–0.028. Given the modest gain and the
+latency / VRAM cost, **do not make reranking the always-on default.** Keep **no-rerank top-6 as
+the interactive default** (fast, no VRAM contention); expose **`bge-reranker-v2-m3 @ fetch_k=30`
+as an optional high-quality mode** (CPU, or GPU only when VRAM is free) for batch/quality-
+sensitive runs. Drop `bge-base` and `fetch_k=60`.
+
+**Net of both tuning experiments:** chunk size doesn't matter for this corpus/encoder/model,
+and reranking buys a small hard-question-specific gain that isn't worth always-on on this
+hardware. The dominant residual failure (`missed_limiting_phrase`) is reasoning-bound — the
+next real gains are in the *answerer* (a stronger/larger local model or better prompting), not
+in retrieval geometry.

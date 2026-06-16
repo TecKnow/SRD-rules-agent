@@ -133,6 +133,10 @@ BGE_M3_TEI = EncoderSpec(backend="tei", model="BAAI/bge-m3")
 NO_RERANK = RerankerSpec(backend="none")
 BGE_RERANK_TEI = RerankerSpec(backend="tei", model="BAAI/bge-reranker-v2-m3")
 MXBAI_RERANK_TEI = RerankerSpec(backend="tei", model="mixedbread-ai/mxbai-rerank-large-v2")
+# In-process cross-encoders (sentence-transformers). CPU is fine for an offline sweep --
+# no Docker/TEI sidecar. Device auto-detects CUDA if a GPU torch build is installed.
+BGE_RERANK_ST = RerankerSpec(backend="sentence-transformers", model="BAAI/bge-reranker-v2-m3")
+BGE_RERANK_BASE_ST = RerankerSpec(backend="sentence-transformers", model="BAAI/bge-reranker-base")
 
 
 @dataclass(frozen=True, slots=True)

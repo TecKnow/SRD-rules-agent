@@ -25,6 +25,13 @@ agent = [
     "uvicorn[standard]>=0.30",
     "httpx>=0.27",
 ]
+# In-process cross-encoder reranker for the bake-off.
+# torch comes from the PyTorch CUDA index (see [tool.uv] below) so it runs on the GPU.
+# Install with: uv sync --extra agent --extra reranker
+reranker = [
+    "torch>=2.12",
+    "sentence-transformers>=3.0",
+]
 
 [project.scripts]
 srd-eval-gather = "srd_eval.gather_no_rag:main"
@@ -36,3 +43,16 @@ srd-agent-bakeoff = "srd_agent.bakeoff:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.uv]
+# CUDA torch only ships win/linux wheels; this project runs on Windows (+ WSL).
+environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
+
+[tool.uv.sources]
+# Pull torch from PyTorch's CUDA 13.0 index so the reranker runs on the GPU.
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

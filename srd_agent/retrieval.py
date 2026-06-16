@@ -117,6 +117,22 @@ class TEIEncoder:
         return self._embed([f"{self.spec.query_prefix}{text}"])[0]
 
 
+def _select_torch_device() -> str:
+    """Device for in-process torch models: SRD_AGENT_TORCH_DEVICE = cpu | cuda | auto (default).
+
+    Auto uses the GPU when present. Set ``cpu`` when Ollama already holds the GPU -- the
+    reranker's compute is tiny and CPU avoids VRAM contention / WDDM paging on a full card.
+    """
+    import os
+
+    pref = os.environ.get("SRD_AGENT_TORCH_DEVICE", "auto").strip().lower()
+    if pref in {"cpu", "cuda"}:
+        return pref
+    import torch
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 @dataclass(slots=True)
 class SentenceTransformerEncoder:
     """In-process encoder. Lazily imports sentence-transformers (pulls torch)."""
@@ -128,7 +144,7 @@ class SentenceTransformerEncoder:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.spec.model, device="cuda")
+            self._model = SentenceTransformer(self.spec.model, device=_select_torch_device())
         return self._model
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
@@ -207,7 +223,7 @@ class CrossEncoderReranker:
         if self._model is None:
             from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self.spec.model, device="cuda")
+            self._model = CrossEncoder(self.spec.model, device=_select_torch_device())
         return self._model
 
     def rerank(self, query: str, candidates: Sequence[Candidate], top_k: int) -> list[Candidate]:

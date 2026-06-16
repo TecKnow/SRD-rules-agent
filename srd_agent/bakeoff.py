@@ -14,8 +14,8 @@ Run in the project venv (Ollama up; OPENROUTER_API_KEY in .env only for grading)
     # Chunking sweep, gather locally, stop before paid judging:
     python -m srd_agent.bakeoff --suite chunking --gather-only
 
-    # Reranker sweep (needs a TEI server for the bge/mxbai candidates), gather + grade:
-    python -m srd_agent.bakeoff --suite rerank
+    # Reranker sweep (in-process cross-encoder; needs the `reranker` extra installed):
+    python -m srd_agent.bakeoff --suite rerank --gather-only
 """
 
 import argparse
@@ -31,12 +31,11 @@ from srd_eval.io import ROOT, DEFAULT_BENCHMARK_PATH, JsonObject, append_jsonl, 
 from .agent import build_chat_model
 from .config import (
     AGENT_RUNS_DIR,
-    BGE_M3_TEI,
-    BGE_RERANK_TEI,
+    BGE_RERANK_BASE_ST,
+    BGE_RERANK_ST,
     DEFAULT_GEN_MODEL,
     DEFAULT_OPENAI_API_KEY,
     DEFAULT_OPENAI_BASE_URL,
-    MXBAI_RERANK_TEI,
     NO_RERANK,
     NOMIC_OPENAI,
     GenSpec,
@@ -68,12 +67,16 @@ CHUNK_SWEEP: dict[str, RetrievalConfig] = {
     "chunk-1600": RetrievalConfig(NOMIC_OPENAI, NO_RERANK, fetch_k=5, top_k=5, chunk_size=1600, chunk_overlap=160),
 }
 
-# Reranker sweep: fixed (baseline) chunking, vary the reranker. TEI-backed ones need a server.
+# Reranker sweep: locked chunk-1200 + nomic encoder, retrieve a wide net (fetch_k=30) and
+# rerank down to top_k=6 with an in-process cross-encoder (no sidecar; CPU-fine).
+# rr-none is the no-rerank baseline and is byte-identical to the already-judged chunk-1200
+# run, so you can reuse chunk-1200's scores instead of re-judging it.
 RERANK_SWEEP: dict[str, RetrievalConfig] = {
-    "rr-none": RetrievalConfig(NOMIC_OPENAI, NO_RERANK),
-    "rr-bge": RetrievalConfig(NOMIC_OPENAI, BGE_RERANK_TEI),
-    "rr-mxbai": RetrievalConfig(NOMIC_OPENAI, MXBAI_RERANK_TEI),
-    "rr-bgem3enc-bge": RetrievalConfig(BGE_M3_TEI, BGE_RERANK_TEI),
+    "rr-none": RetrievalConfig(NOMIC_OPENAI, NO_RERANK, fetch_k=30, top_k=6),
+    "rr-bge-m3": RetrievalConfig(NOMIC_OPENAI, BGE_RERANK_ST, fetch_k=30, top_k=6),
+    "rr-bge-base": RetrievalConfig(NOMIC_OPENAI, BGE_RERANK_BASE_ST, fetch_k=30, top_k=6),
+    # Wider candidate net: does giving the strong reranker more to promote amplify the gain?
+    "rr-bge-m3-fk60": RetrievalConfig(NOMIC_OPENAI, BGE_RERANK_ST, fetch_k=60, top_k=6),
 }
 
 CANDIDATES: dict[str, RetrievalConfig] = {**CHUNK_SWEEP, **RERANK_SWEEP}
